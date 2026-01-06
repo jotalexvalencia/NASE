@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<!-- =======================================================================
+ * 📍 actualizar_centros.html – Herramienta de Coordenadas (NASE 2026)
+ * ----------------------------------------------------------------------
+/**
+ * @summary Interfaz para Supervisores: Actualización GPS de Centros.
+ * @description Este HTML permite a los usuarios supervisores corregir o actualizar
+ *              las coordenadas GPS (Lat/Lng) de los centros de trabajo.
+ *
+ * @workflow
+ *   1. **Identificación:** El supervisor ingresa su cédula. El backend la valida.
+ *   2. **Selección:** Se desbloquea el formulario para seleccionar Ciudad y Centro.
+ *   3. **Geolocalización:** Botón para obtener la ubicación actual del móvil/navegador.
+ *   4. **Guardado:** Envía las nuevas coordenadas al backend para actualizar la hoja 'Centros'.
+ *
+ * @technical
+ *   - 📦 **Inyección de Datos:** Al cargar, Google Apps Script inyecta el objeto
+ *     `centrosData` (lista de ciudades y centros) directamente en el código JS.
+ *   - 🗺️ **Geolocalización:** Usa `navigator.geolocation.getCurrentPosition` del navegador.
+ *   - 🔐 **Seguridad:** El backend (`buscarSupervisorPublico`) valida que el usuario
+ *     tenga permisos para actualizar el centro seleccionado.
+ *
+ * @dependencies
+ *   - Backend: `Code.gs` (Funciones: `buscarSupervisorPublico`, `actualizarCoordenadasCentro`).
+ *   - Librerías: Bootstrap 5, SweetAlert2, Google Fonts (Poppins).
+ *
+ * @author NASE Team
+ * @version 1.1
+ * ======================================================================= -->
+
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+  <title>NASE - Actualizar Coordenadas</title>
+
+  <!-- Bootstrap + Fonts + Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <!-- ======================================================================
+   * 🎨 ESTILOS CSS (Diseño Visual)
+   * ====================================================================== -->
+  <style>
+    body { 
+      background-color: #f6f8fb; 
+      font-family: 'Poppins', sans-serif; 
+      font-size: 0.9rem; 
+    }
+    
+    .app-container { 
+      max-width: 600px; 
+      margin: 0 auto; 
+      padding: 20px; 
+    }
+    
+    .header { 
+      background: #fff; 
+      padding: 15px; 
+      border-radius: 16px; 
+      margin-bottom: 20px; 
+      text-align: center; 
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+    }
+    
+    .logo { 
+      height: 50px; 
+      margin-bottom: 10px; 
+    }
+    
+    /* Tarjeta para cada sección (Paso) */
+    .card-section { 
+      background: #fff; 
+      border-radius: 16px; 
+      padding: 25px; 
+      margin-bottom: 20px; 
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+      transition: opacity 0.3s;
+    }
+    
+    /* Números de pasos circulares */
+    .step-number { 
+      background: #0b6efd; 
+      color: white; 
+      width: 28px; 
+      height: 28px; 
+      border-radius: 50%; 
+      display: inline-flex; 
+      align-items: center; 
+      justify-content: center; 
+      margin-right: 8px; 
+      font-weight: bold;
+    }
+    
+    /* Clase para deshabilitar visualmente una sección (opacidad + sin click) */
+    .disabled-section { 
+      opacity: 0.5; 
+      pointer-events: none; 
+      filter: grayscale(100%);
+    }
+    
+    /* Estilos de Inputs */
+    .form-control:focus, .form-select:focus { 
+      border-color: #0b6efd; 
+      box-shadow: 0 0 0 3px rgba(11,110,253,0.15); 
+    }
+  </style>
+</head>
+
+<!-- ======================================================================
+ * 📐 ESTRUCTURA HTML (DOM)
+ * ====================================================================== -->
+<body>
+  <div class="app-container">
+    <!-- 1. CABECERA -->
+    <div class="header">
+      <img src="https://raw.githubusercontent.com/jotalexvalencia/NASE/main/Logo_Nase.png" alt="NASE" class="logo">
+      <h3 class="fw-bold" style="color:#17365D; margin:0;">Actualización de Centros</h3>
+    </div>
+
+    <!-- 2. SECCIÓN 1: IDENTIFICACIÓN SUPERVISOR -->
+    <!-- El usuario debe validar quién es para desbloquear el formulario. -->
+    <div class="card-section" id="section-supervisor">
+      <div class="fw-bold mb-3 d-flex align-items-center">
+        <span class="step-number">1</span> Identificación Supervisor
+      </div>
+      
+      <div class="mb-3">
+        <label class="form-label">Cédula</label>
+        <!-- Input numérico (solo dígitos) -->
+        <div class="input-group">
+          <input type="text" id="cedulaSup" class="form-control" placeholder="Solo números" maxlength="15" inputmode="numeric" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+          <button class="btn btn-primary" type="button" onclick="window.buscarSupervisor()">
+            <i class="bi bi-search"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Panel de Autorización (Se muestra solo tras buscar cédula) -->
+      <div id="infoSupervisor" style="display:none; background:#f8f9fa; padding:15px; border-radius:10px; border-left:4px solid #198754;">
+        <div class="fw-bold text-success"><i class="bi bi-check-circle-fill me-2"></i>Autorizado</div>
+        <div id="nombreSupDisplay" class="fw-bold text-dark"></div>
+      </div>
+    </div>
+
+    <!-- 3. SECCIÓN 2: DATOS Y UBICACIÓN (Iniciamente deshabilitada) -->
+    <!-- Esta sección tiene la clase 'disabled-section' al inicio y se quita tras autorizar. -->
+    <div class="card-section disabled-section" id="section-datos">
+      <div class="fw-bold mb-3 d-flex align-items-center">
+        <span class="step-number">2</span> Ubicación del Centro
+      </div>
+
+      <form id="formCentro" onsubmit="window.enviarFormulario(event)">
+        <div class="mb-3">
+          <label class="form-label">Ciudad</label>
+          <!-- Select poblado dinámicamente desde JS -->
+          <select class="form-select" id="ciudad" required disabled onchange="window.filtrarCentros()"></select>
+        </div>
+        
+        <div class="mb-3">
+          <label class="form-label">Centro de Trabajo</label>
+          <!-- Select poblado dinámicamente desde JS (filtrado por ciudad) -->
+          <select class="form-select" id="centro" required disabled></select>
+        </div>
+
+        <div class="alert alert-info py-2 small">
+          <i class="bi bi-info-circle me-1"></i> Ubíquese en la entrada principal.
+        </div>
+       
+        <!-- Botón para pedir permisos al navegador y obtener GPS -->
+        <button type="button" class="btn btn-warning w-100 fw-bold mb-3" onclick="window.obtenerUbicacion()">
+          <i class="bi bi-geo-alt-fill me-2"></i> Capturar GPS
+        </button>
+       
+        <!-- Inputs Lat/Lng (ReadOnly) -->
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <input type="text" class="form-control form-control-sm" id="lat" readonly placeholder="Latitud">
+          </div>
+          <div class="col-6">
+            <input type="text" class="form-control form-control-sm" id="lng" readonly placeholder="Longitud">
+          </div>
+        </div>
+
+        <!-- Botón Submit (Habilitado solo después de obtener GPS) -->
+        <button type="submit" class="btn btn-success w-100 py-2 fw-bold" id="btnGuardar" disabled>
+          <i class="bi bi-cloud-upload me-2"></i> ACTUALIZAR
+        </button>
+      </form>
+    </div>
+  </div>
+
+<!-- ======================================================================
+ * 🧠 LÓGICA JAVASCRIPT (Frontend)
+ * ====================================================================== -->
+  <script>
+    /**
+     * @summary Variables Globales.
+     * @description
+     * - `centrosData`: Almacena el objeto de centros inyectado por el servidor.
+     * - `supervisorValidado`: Almacena el nombre del supervisor autorizado.
+     */
+    var centrosData = {};
+    var supervisorValidado = null;
+
+    // -------------------------------------------------------------------
+    // 1. INICIALIZACIÓN E INYECCIÓN DE DATOS
+    // -------------------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', function() {
+      // INYECCIÓN SEGURA DEL SERVIDOR
+      // Google Apps Script reemplaza `<?!= centrosInyectados ?>` por el objeto JSON real
+      // antes de servir este HTML al usuario.
+      try {
+        var rawData = <?!= centrosInyectados ?>;
+        centrosData = rawData || {};
+        
+        // Verificación visual en consola (para desarrolladores)
+        console.log("Datos de centros cargados:", Object.keys(centrosData).length);
+        
+        // Si hay datos, cargar los selectores de inmediato
+        if (Object.keys(centrosData).length > 0) {
+           window.llenarSelectores();
+        }
+      } catch(e) {
+        console.error("Error iniciando o inyectando centros:", e);
+        centrosData = {}; // Fallback a objeto vacío si falla inyección
+      }
+    });
+
+    // -------------------------------------------------------------------
+    // 2. VALIDACIÓN DE SUPERVISOR
+    // -------------------------------------------------------------------
+    /**
+     * @summary Busca al supervisor en la hoja de RRHH.
+     * @description Envía la cédula al backend (`buscarSupervisorPublico`).
+     *              Si es autorizado, desbloquea la sección 2 (Ubicación).
+     *              Actualiza el nombre del usuario en pantalla.
+     */
+    window.buscarSupervisor = function() {
+      var cedula = document.getElementById('cedulaSup').value.trim();
+      if (!cedula) { 
+        Swal.fire('Error', 'Ingrese una cédula.', 'warning'); 
+        return; 
+      }
+
+      // UI: Estado de carga en el botón
+      var btn = document.querySelector('.input-group button');
+      btn.disabled = true;
+      btn.innerHTML = '...';
+
+      // Llamada al Backend
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-search"></i>';
+          
+          if (res.ok) {
+            supervisorValidado = res.nombre;
+            document.getElementById('nombreSupDisplay').textContent = res.nombre;
+            document.getElementById('infoSupervisor').style.display = 'block';
+            
+            // Desbloquear Sección 2
+            document.getElementById('section-datos').classList.remove('disabled-section');
+            document.getElementById('ciudad').disabled = false;
+            document.getElementById('cedulaSup').readOnly = true; // Bloquear cédula
+            
+            Swal.fire({
+              icon: 'success', 
+              title: 'Bienvenido', 
+              text: res.nombre, 
+              timer: 1500, 
+              showConfirmButton: false
+            });
+          } else {
+            Swal.fire('Acceso Denegado', res.mensaje, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-search"></i>';
+          Swal.fire('Error', err.message, 'error');
+        })
+        .buscarSupervisorPublico(cedula);
+    };
+
+    // -------------------------------------------------------------------
+    // 3. POBLACIÓN DE SELECTORES (Ciudad -> Centro)
+    // -------------------------------------------------------------------
+    /**
+     * @summary Llena el dropdown de Ciudades basado en los datos inyectados.
+     * @description Recorre el objeto `centrosData` para extraer ciudades únicas
+     *              y las agrega al `<select>` de ciudades.
+     */
+    window.llenarSelectores = function() {
+      var ciudadSel = document.getElementById('ciudad');
+      var lista = Object.values(centrosData);
+      
+      // Extraer ciudades únicas usando un Mapa
+      var ciudadesMap = {};
+      for(var i=0; i<lista.length; i++) {
+        ciudadesMap[lista[i].ciudad] = true;
+      }
+      var ciudades = Object.keys(ciudadesMap).sort(); // Ordenar alfabéticamente
+     
+      ciudadSel.innerHTML = '<option value="">Seleccione Ciudad...</option>';
+      for(var j=0; j<ciudades.length; j++) {
+        var opt = document.createElement('option');
+        opt.value = ciudades[j];
+        opt.textContent = ciudades[j];
+        ciudadSel.appendChild(opt);
+      }
+    };
+
+    /**
+     * @summary Filtra el dropdown de Centros basado en la Ciudad seleccionada.
+     * @description Limpia el select de centros y agrega solo aquellos que
+     *              corresponden a la ciudad elegida.
+     */
+    window.filtrarCentros = function() {
+      var ciudadSel = document.getElementById('ciudad');
+      var centroSel = document.getElementById('centro');
+      
+      // Limpiar select de centros
+      centroSel.innerHTML = '<option value="">Seleccione Centro...</option>';
+      centroSel.disabled = true;
+
+      if(ciudadSel.value) {
+        // Filtrar datos inyectados
+        var filtrados = [];
+        var allValues = Object.values(centrosData);
+        
+        for(var i=0; i<allValues.length; i++) {
+          if(allValues[i].ciudad === ciudadSel.value) {
+            filtrados.push(allValues[i]);
+          }
+        }
+        
+        // Ordenar centros alfabéticamente
+        filtrados.sort(function(a,b) { 
+            return a.centro.localeCompare(b.centro); 
+        });
+       
+        // Rellenar select
+        for(var k=0; k<filtrados.length; k++) {
+          var opt = document.createElement('option');
+          opt.value = filtrados[k].centro;
+          opt.textContent = filtrados[k].centro;
+          centroSel.appendChild(opt);
+        }
+        
+        // Habilitar select de centros
+        centroSel.disabled = false;
+      }
+    };
+
+    // -------------------------------------------------------------------
+    // 4. GEOLOCALIZACIÓN (GPS)
+    // -------------------------------------------------------------------
+    /**
+     * @summary Obtiene la ubicación actual del navegador.
+     * @description Solicita al navegador (`navigator.geolocation`) las coordenadas
+     *              actuales. Usa alta precisión (`enableHighAccuracy: true`).
+     *              Si tiene éxito, llena los inputs Lat/Lng y habilita el botón guardar.
+     */
+    window.obtenerUbicacion = function() {
+      if(!supervisorValidado) return Swal.fire('Alerta', 'Valide supervisor primero.', 'warning');
+      if(!document.getElementById('centro').value) return Swal.fire('Alerta', 'Seleccione centro.', 'warning');
+
+      // SweetAlert de carga
+      Swal.fire({title: 'Obteniendo GPS...', didOpen: function() { Swal.showLoading() }});
+
+      if (!navigator.geolocation) {
+         Swal.fire('Error', 'Navegador no soporta GPS', 'error');
+         return;
+      }
+
+      // Llamada a la API de Geolocalización del navegador
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          Swal.close();
+          // Escribir en inputs (7 decimales para precisión)
+          document.getElementById('lat').value = pos.coords.latitude.toFixed(7);
+          document.getElementById('lng').value = pos.coords.longitude.toFixed(7);
+          
+          // Habilitar botón de envío
+          document.getElementById('btnGuardar').disabled = false;
+        },
+        function(err) {
+          Swal.close();
+          Swal.fire('Error GPS', 'No se pudo obtener ubicación. Active el GPS.', 'error');
+        },
+        { 
+          enableHighAccuracy: true, // Intentar usar GPS/Wi-Fi de alta precisión
+          timeout: 15000,           // Esperar máximo 15 segundos
+          maximumAge: 0           // No usar caché de posición
+        }
+      );
+    };
+
+    // -------------------------------------------------------------------
+    // 5. ENVÍO DE FORMULARIO (Backend)
+    // -------------------------------------------------------------------
+    /**
+     * @summary Envía las nuevas coordenadas al servidor.
+     * @description Construye un objeto JSON con Ciudad, Centro, Lat, Lng y Supervisor.
+     *              Llama a la función backend `actualizarCoordenadasCentro`.
+     *              Si el backend responde ok, recarga la página.
+     */
+    window.enviarFormulario = function(e) {
+      e.preventDefault();
+      if(!supervisorValidado) return;
+
+      // Recoger datos del formulario
+      var data = {
+        ciudad: document.getElementById('ciudad').value,
+        centro: document.getElementById('centro').value,
+        lat: document.getElementById('lat').value,
+        lng: document.getElementById('lng').value,
+        supervisor: supervisorValidado
+      };
+
+      // SweetAlert de carga
+      Swal.fire({title: 'Guardando...', didOpen: function() { Swal.showLoading() }});
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.status === 'ok') {
+            Swal.fire('¡Éxito!', 'Centro actualizado.', 'success').then(function() { 
+              // Recargar página para reflejar cambios
+              window.location.reload(); 
+            });
+          } else {
+            Swal.fire('Error', res.message, 'error');
+          }
+        })
+        .withFailureHandler(function(err) { 
+          Swal.fire('Error', err.message, 'error'); 
+        })
+        .actualizarCoordenadasCentro(data);
+    };
+  </script>
+</body>
+</html>
