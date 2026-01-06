@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<!-- =======================================================================
+ * 📄 consulta.html – Interfaz de Búsqueda y Visualización (NASE 2026)
+ * ----------------------------------------------------------------------
+ * @summary Dashboard web para consulta de registros de asistencia.
+ * @description 
+ * Este archivo sirve como la interfaz administrativa o de RRHH para visualizar
+ * los registros guardados en la hoja "Respuestas" (backend).
+ *
+ * @features
+ *   - 📊 **Estadísticas:** Muestra contadores de Registros, Entradas, Salidas y Sitio.
+ *   - 🔍 **Filtros Avanzados:** Búsqueda por rango de fechas, Cédula, Nombre y Centro.
+ *   - 📋 **Tabla Paginada:** Presenta los datos en una tabla con scroll y paginación cliente.
+ *   - 🖼️ **Visor de Fotos:** Modal para ampliar fotos de Drive (Thumbnails).
+ *   - 📝 **Detalle:** Modal lateral con información detallada de Entrada y Salida.
+ *   - 💾 **Exportar CSV:** Descarga el reporte filtrado compatible con Excel.
+ *   - 🔗 **Mapas:** Enlace a Google Maps para ver la ubicación exacta del registro.
+ *
+ * @dependencies
+ *   - Backend: `obtenerRegistros()` y `exportarRegistrosExcel()` en `Code.gs`.
+ *   - Librerías: Bootstrap 5 (Estilo), SweetAlert2 (Alertas), Bootstrap Icons.
+ *
+ * @author NASE Team
+ * @version 1.1
+ * ======================================================================= -->
+
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+  <title>NASE - Consulta Registros</title> 
+ 
+  <!-- Bootstrap + Fonts + Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script> 
+ 
+  <!-- ======================================================================
+   * 🎨 ESTILOS CSS (Diseño Visual)
+   * ====================================================================== -->
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #fff;
+      --primary: #0b6efd;
+      --success: #198754;
+      --text-color: #17365D;
+    }
+   
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: 'Poppins', Arial, Helvetica, sans-serif;
+      background-color: var(--bg);
+      font-size: 0.875rem;
+    }
+   
+    /* Contenedor Principal */
+    .app-container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+   
+    /* Cabecera con Logo */
+    .header {
+      background: var(--card);
+      padding: 15px 30px;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 25px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+    }
+    .logo { height: 80px; }
+    .page-title {
+      color: var(--text-color);
+      font-weight: 600;
+      font-size: 1.5rem;
+      margin: 0;
+      text-align: center;
+      flex-grow: 1;
+      padding: 0 20px;
+    }
+   
+    /* Tarjeta de Filtros */
+    .filters-card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 25px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+      border: 1px solid #f0f0f0;
+    }
+   
+    .form-label {
+      font-weight: 600;
+      color: var(--text-color);
+      font-size: 0.85rem;
+      margin-bottom: 0.3rem;
+    }
+   
+    .form-control, .form-select {
+      border-radius: 8px;
+      border: 1px solid #dee2e6;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+    }
+   
+    .form-control:focus, .form-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(11,110,253,0.15);
+    }
+   
+    .btn-custom {
+      min-height: 46px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      border-radius: 10px;
+      padding: 8px 20px;
+      transition: all 0.2s;
+    }
+   
+    .btn-primary-custom {
+      background-color: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+   
+    .btn-primary-custom:hover {
+      background-color: #0a58ca;
+      border-color: #0a58ca;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(11,110,253,0.25);
+    }
+   
+    .btn-success-custom {
+      background-color: var(--success);
+      border-color: var(--success);
+      color: white;
+    }
+   
+    .btn-success-custom:hover {
+      background-color: #157347;
+      border-color: #157347;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(25,135,84,0.25);
+    }
+   
+    /* Contenedor de Tabla con Scroll y Encabezado Fijo */
+    .table-container {
+      max-height: 600px;
+      overflow-y: auto;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      background: var(--card);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+      margin-bottom: 20px;
+      border: 1px solid #e9ecef;
+      transform: none !important;
+      filter: none !important;
+      will-change: auto !important;
+    }
+
+    .table {
+      width: 100%;
+      min-width: 1300px; /* Asegura que la tabla no se encoja demasiado en móvil */
+      border-collapse: collapse;
+    }
+
+    /* Sticky Header: Fija el encabezado al hacer scroll */
+    .table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background-color: #f8f9fa;
+      background-clip: padding-box;
+      color: var(--text-color);
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border: 1px solid #dee2e6;
+      padding: 10px 8px;
+      white-space: nowrap;
+    }
+
+    .table tbody td {
+      padding: 10px 8px;
+      vertical-align: middle;
+      font-size: 0.85rem;
+      border: 1px solid #f1f3f5;
+      white-space: nowrap;
+    }
+   
+    .table tbody tr:hover {
+      background-color: #f8f9fa;
+    }
+   
+    /* Miniatura de Foto */
+    .foto-cell {
+      width: 42px;
+      height: 42px;
+      object-fit: cover;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+      transition: transform 0.2s;
+      background: #eee;
+    }
+   
+    .foto-cell:hover {
+      transform: scale(1.25);
+      z-index: 10;
+      border-color: var(--primary);
+    }
+   
+    .no-photo {
+      width: 42px;
+      height: 42px;
+      background-color: #e9ecef;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #6c757d;
+      font-size: 20px;
+    }
+   
+    .btn-ver-detalle {
+      background: none;
+      border: none;
+      color: var(--primary);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+   
+    .btn-ver-detalle:hover {
+      background-color: #e7f1ff;
+      transform: scale(1.1);
+    }
+   
+    /* Badge de Estado (Dentro/Fuera) */
+    .status-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+    }
+   
+    .status-inside {
+      background-color: #d4edda;
+      color: #155724;
+    }
+   
+    .status-outside {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+   
+    /* Controles de Paginación */
+    .pagination-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+   
+    .pagination {
+      display: flex;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+   
+    .page-item {
+      margin: 0 5px;
+    }
+   
+    .page-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background-color: #fff;
+      border: 1px solid #dee2e6;
+      color: var(--primary);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+   
+    .page-link:hover {
+      background-color: #f8f9fa;
+      transform: translateY(-2px);
+    }
+   
+    .page-item.active .page-link {
+      background-color: var(--primary);
+      border-color: var(--primary);
+      color: white;
+    }
+   
+    .page-item.disabled .page-link {
+      color: #6c757d;
+      cursor: not-allowed;
+    }
+   
+    /* Estadísticas */
+    .stats-box {
+      background: white;
+      padding: 15px;
+      border-radius: 12px;
+      text-align: center;
+      border: 1px solid #f0f0f0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      height: 100%;
+    }
+    .stats-num { font-size: 1.6rem; font-weight: 600; color: var(--text-color); line-height: 1.2; }
+    .stats-label { color: #6c757d; font-size: 0.8rem; font-weight: 500; text-transform: uppercase; }
+   
+    /* Autocomplete Dropdown */
+    .autocomplete-suggestions {
+      position: absolute;
+      border: 1px solid #ddd;
+      background: white;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 1000;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      display: none;
+    }
+    .autocomplete-suggestion {
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+    }
+    .autocomplete-suggestion:hover {
+      background-color: #f8f9fa;
+    }
+    .autocomplete-suggestion:last-child {
+      border-bottom: none;
+    }
+   
+    /* Ajustes Responsivos */
+    @media (max-width: 768px) {
+      .app-container { padding: 10px; }
+      .header { padding: 10px 15px; }
+      .page-title { font-size: 1.2rem; }
+      .logo { height: 60px; }
+      .filters-card, .table-container { padding: 15px; }
+      .table thead th, .table tbody td { padding: 8px 6px; font-size: 12px; }
+      .foto-cell, .no-photo { width: 32px; height: 32px; font-size: 16px; }
+    }
+  </style>
+</head>
+
+
+
+
+<body>
+  <!-- ======================================================================
+   * 📐 ESTRUCTURA HTML (DOM)
+   * ====================================================================== -->
+
+  <div class="app-container">
+    <!-- CABECERA -->
+    <div class="header">
+      <img src="https://raw.githubusercontent.com/jotalexvalencia/NASE/main/Logo_Nase.png" alt="NASE" class="logo">
+      <h2 class="page-title">Consulta de Entradas y Salidas</h2>
+      <div style="width: 80px;"></div>
+    </div>
+   
+    <!-- 1. TARJETA DE ESTADÍSTICAS -->
+    <!-- Muestra contadores en tiempo real (Total, Entradas, Salidas, Sitio) -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="stats-box">
+          <div class="stats-num" id="totalRegistros">0</div>
+          <div class="stats-label">Registros</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stats-box">
+          <div class="stats-num text-success" id="totalEntradas">0</div>
+          <div class="stats-label">Con Entrada</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stats-box">
+          <div class="stats-num text-danger" id="totalSalidas">0</div>
+          <div class="stats-label">Con Salida</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stats-box">
+          <div class="stats-num text-primary" id="totalDentro">0</div>
+          <div class="stats-label">En Sitio</div>
+        </div>
+      </div>
+    </div>
+   
+    <!-- 2. TARJETA DE FILTROS -->
+    <!-- Inputs de búsqueda y fechas -->
+    <div class="filters-card">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Fecha Inicio</label>
+          <input type="date" id="fechaInicio" class="form-control">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Fecha Fin</label>
+          <input type="date" id="fechaFin" class="form-control">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Cédula</label>
+          <input type="text" id="filtroCedula" class="form-control" placeholder="Buscar..." oninput="buscarAutocomplete('cedula')">
+          <!-- Div para sugerencias autocompletadas -->
+          <div id="autocompleteCedula" class="autocomplete-suggestions"></div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Nombre</label>
+          <input type="text" id="filtroNombre" class="form-control" placeholder="Buscar..." oninput="buscarAutocomplete('nombre')">
+          <div id="autocompleteNombre" class="autocomplete-suggestions"></div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Centro</label>
+          <input type="text" id="filtroCentro" class="form-control" placeholder="Buscar..." oninput="buscarAutocomplete('centro')">
+          <div id="autocompleteCentro" class="autocomplete-suggestions"></div>
+        </div>
+        <div class="col-md-12 d-flex justify-content-end mt-3 gap-2">
+          <button class="btn btn-custom btn-primary-custom" onclick="filtrarRegistros()">
+            <i class="bi bi-search me-2"></i>Filtrar
+          </button>
+          <button class="btn btn-custom btn-success-custom" onclick="exportarRegistros()">
+            <i class="bi bi-file-earmark-excel me-2"></i>Exportar
+          </button>
+        </div>
+      </div>
+    </div>
+   
+    <!-- 3. TABLA DE REGISTROS (Scroll Sticky Header) -->
+    <div class="table-container">
+      <table class="table" id="tablaRegistros">
+        <thead>
+          <tr>
+            <th>Cédula</th>
+            <th>Nombre</th>
+            <th>Centro</th>
+            <th>Ciudad</th>
+            <th>F. Ent</th>
+            <th>H. Ent</th>
+            <th>Foto Ent</th>
+            <th>F. Sal</th>
+            <th>H. Sal</th>
+            <th>Foto Sal</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <!-- Cuerpo de la tabla, se llena dinámicamente con JS -->
+        <tbody id="cuerpoTabla">
+          <!-- Spinner de carga inicial -->
+          <tr>
+            <td colspan="13" class="text-center py-5">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+              </div>
+              <div class="mt-2 text-muted">Cargando datos...</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+   
+    <!-- 4. PAGINACIÓN -->
+    <div class="pagination-container">
+      <ul class="pagination" id="paginacion"></ul>
+    </div>
+   
+    <!-- 5. MODAL VISOR DE FOTOS (Overlay) -->
+    <div id="photoModal" style="display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.8);cursor:pointer;">
+      <!-- Botón cerrar -->
+      <span style="position:absolute;top:20px;right:30px;color:#fff;font-size:40px;font-weight:bold;z-index:1001;" onclick="closePhotoModal()">&times;</span>
+      <!-- Imagen en pantalla completa -->
+      <img style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:90%;max-height:90%;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.3);" id="modalImage">
+    </div>
+   
+    <!-- 6. MODAL DETALLES (Side-By-Side Entrada/Salida) -->
+    <div id="detalleModal" style="display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.5);overflow-y:auto;">
+      <div style="background-color:#fff;margin:2% auto;padding:0;border-radius:16px;width:90%;max-width:850px;box-shadow:0 8px 30px rgba(0,0,0,0.12);overflow:hidden;">
+        <!-- Header del Modal -->
+        <div style="background:linear-gradient(135deg,var(--primary),#0a58ca);color:white;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="font-size:18px;font-weight:600;margin:0;">Detalles del Registro</h3>
+          <button style="color:white;font-size:24px;font-weight:bold;background:none;border:none;opacity:0.8;" onclick="closeDetalleModal()">&times;</button>
+        </div>
+        <!-- Cuerpo del Modal -->
+        <div style="padding:20px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px;">
+            
+            <!-- BLOQUE ENTRADA -->
+            <div style="background-color:#f8f9fa;border-radius:12px;padding:16px;">
+              <div style="font-size:14px;font-weight:600;color:var(--text-color);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                <i class="bi bi-box-arrow-in-right"></i> Entrada
+              </div>
+              <div style="display:flex;margin-bottom:8px;align-items:center;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Fecha:</span>
+                <span style="color:#212529;font-size:13px;" id="detalleFechaEntrada">-</span>
+              </div>
+              <div style="display:flex;margin-bottom:8px;align-items:center;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Hora:</span>
+                <span style="color:#212529;font-size:13px;" id="detalleHoraEntrada">-</span>
+              </div>
+              <div style="display:flex;margin-bottom:8px;align-items:center;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Centro:</span>
+                <span style="color:#212529;font-size:13px;" id="detalleCentroEntrada">-</span>
+              </div>
+              <div style="display:flex;margin-bottom:8px;align-items:center;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Estado:</span>
+                <span style="color:#212529;font-size:13px;" id="detalleDentroEntrada">-</span>
+              </div>
+              <div style="display:flex;align-items:center;margin-bottom:8px;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Foto:</span>
+                <div>
+                  <img id="detalleFotoEntrada" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,0.1);" onclick="openPhotoModal(this.src)">
+                  <div id="detalleFotoEntradaVacia" class="no-photo" style="width:80px;height:80px;display:none;font-size:24px;">📷</div>
+                </div>
+              </div>
+              <div style="text-align:center;margin-top:10px;">
+                <a href="#" id="mapLinkEntrada" target="_blank" style="color:var(--primary);text-decoration:none;font-size:13px;">
+                  <i class="bi bi-map"></i> Ver ubicación entrada
+                </a>
+              </div>
+            </div>
+
+            <!-- BLOQUE SALIDA -->
+            <div style="background-color:#f8f9fa;border-radius:12px;padding:16px;">
+              <div style="font-size:14px;font-weight:600;color:var(--text-color);margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                <i class="bi bi-box-arrow-left"></i> Salida
+              </div>
+              <div style="display:flex;margin-bottom:8px;align-items:center;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Fecha:</span>
+                <span style="color:#212529;font-size:13px;" id="detalleFechaSalida">-</span>
+              </div>
+              <div style="display:flex;margin-bottom:8px;align-items:center;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Hora:</span>
+                <span style="color:#212529;font-size:13px;" id="detalleHoraSalida">-</span>
+              </div>
+              <div style="display:flex;margin-bottom:8px;align-items:center;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Centro:</span>
+                <span style="color:#212529;font-size:13px;" id="detalleCentroSalida">-</span>
+              </div>
+              <div style="display:flex;margin-bottom:8px;align-items:center;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Estado:</span>
+                <span style="color:#212529;font-size:13px;" id="detalleDentroSalida">-</span>
+              </div>
+              <div style="display:flex;align-items:center;margin-bottom:8px;">
+                <span style="font-weight:500;color:#6c757d;width:80px;font-size:13px;">Foto:</span>
+                <div>
+                  <img id="detalleFotoSalida" style="width:80px;height:80px;object-fit:cover;border-radius:8px;cursor:pointer;box-shadow:0 2px 5px rgba(0,0,0,0.1);" onclick="openPhotoModal(this.src)">
+                  <div id="detalleFotoSalidaVacia" class="no-photo" style="width:80px;height:80px;display:none;font-size:24px;">📷</div>
+                </div>
+              </div>
+              <div style="text-align:center;margin-top:10px;">
+                <a href="#" id="mapLinkSalida" target="_blank" style="color:var(--primary);text-decoration:none;font-size:13px;">
+                  <i class="bi bi-map"></i> Ver ubicación salida
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+  <!-- ======================================================================
+   * 🧠 LÓGICA JAVASCRIPT (Frontend)
+   * ====================================================================== -->
+  <script>
+    /**
+     * @summary Variables Globales de Estado.
+     * @description
+     * - `registrosData`: Array que almacena TODOS los registros descargados.
+     * - `paginaActual`: Número de página actual (1).
+     * - `registrosPorPagina`: Límite de filas visibles por página.
+     * - `autocompleteTimeout`: Debounce para la búsqueda de sugerencias.
+     */
+    let registrosData = [];
+    let paginaActual = 1;
+    const registrosPorPagina = 8;
+
+    // Variables para manejo de autocompletado
+    let autocompleteTimeout = null;
+    let selectedAutocomplete = null;
+
+    /**
+     * @summary Convierte URL de Drive a URL de Imagen (Thumbnail).
+     * @description Transforma `drive.google.com/file/d/ID` en `drive.google.com/thumbnail?id=ID`.
+     *              Esto permite mostrar la imagen en un tag `img` sin necesidad de autenticación.
+     * 
+     * @param {String} url - URL larga de Drive.
+     * @returns {String} URL directa de imagen o string vacío.
+     */
+    function convertirUrlDrive(url) {
+      if (!url) return '';
+      const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        return 'https://drive.google.com/thumbnail?id=' + match[1] + '&sz=s1000';
+      }
+      return url;
+    }
+   
+    /**
+     * @summary Formatea la hora HH:mm:ss.
+     * @description Asegura formato de 2 dígitos para horas y minutos.
+     */
+    function formatoHora(hora) {
+      if (!hora || hora === '-') return '-';
+      const match = hora.match(/(\d{1,2}):(\d{2})/);
+      if (match) {
+        return `${String(parseInt(match[1], 10)).padStart(2, '0')}:${match[2]}`;
+      }
+      return '-';
+    }
+
+    /**
+     * @summary Convierte string fecha ISO (Backend) a string dd/mm/yyyy.
+     * @description El backend devuelve "2026-01-02T...". Esta función lo convierte a "02/01/2026".
+     * @private
+     */
+    function formatearFechaParaTabla(isoString) {
+      if (!isoString) return '-';
+      try {
+        const date = new Date(isoString);
+        if (isNaN(date.getTime())) return '-';
+        const dia = String(date.getDate()).padStart(2, '0');
+        const mes = String(date.getMonth() + 1).padStart(2, '0');
+        const anio = date.getFullYear();
+        return `${dia}/${mes}/${anio}`;
+      } catch (e) {
+        return '-';
+      }
+    }
+
+    // -------------------------------------------------------------------
+    // 1. INICIALIZACIÓN
+    // -------------------------------------------------------------------
+    /**
+     * @summary Evento al cargar la página.
+     * @description Establece las fechas por defecto (Inicio y Fin del mes actual)
+     *              y ejecuta la primera carga de registros.
+     */
+    document.addEventListener('DOMContentLoaded', function() {
+      const hoy = new Date();
+      // Calcular primer día del mes actual
+      const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+      // Calcular primer día del mes siguiente (que es el último día del actual + 1, luego 0)
+      const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+
+      // Establecer valores en inputs de fecha (formato YYYY-MM-DD para input date)
+      document.getElementById('fechaInicio').value = primerDiaMes.toISOString().split('T')[0];
+      document.getElementById('fechaFin').value = ultimoDiaMes.toISOString().split('T')[0];
+
+      // Cargar datos iniciales
+      cargarRegistros();
+    });
+
+    // -------------------------------------------------------------------
+    // 2. OBTENER DATOS (Backend)
+    // -------------------------------------------------------------------
+    /**
+     * @summary Solicita registros al servidor y actualiza la tabla.
+     * @description Llama a `obtenerRegistros` en `Code.gs` con los filtros del DOM.
+     *              Maneja estados de carga (Spinner) y errores de red.
+     */
+    function cargarRegistros() {
+      // Recoger filtros del DOM
+      const filtros = {
+        fechaInicio: document.getElementById('fechaInicio').value,
+        fechaFin: document.getElementById('fechaFin').value,
+        cedula: document.getElementById('filtroCedula').value,
+        nombre: document.getElementById('filtroNombre').value,
+        centro: document.getElementById('filtroCentro').value
+      };
+
+      // Mostrar spinner
+      document.getElementById('cuerpoTabla').innerHTML = `
+        <tr><td colspan="13" class="text-center py-5">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div class="mt-2 text-muted">Cargando...</div>
+        </td></tr>
+      `;
+
+      // Llamada a Google Apps Script
+      google.script.run
+        .withSuccessHandler(function(res) {
+          console.log('✅ Respuesta del servidor:', res);
+
+          if (!res || typeof res !== 'object') {
+            console.error('❌ Respuesta inválida:', res);
+            document.getElementById('cuerpoTabla').innerHTML = `
+              <tr><td colspan="13" class="text-center text-danger py-5">
+                ❌ Error: el servidor no devolvió datos válidos.
+              </td></tr>`;
+            resetEstadisticas();
+            return;
+          }
+
+          if (res.status === 'ok') {
+            registrosData = res.registros || [];
+            paginaActual = 1;
+            mostrarRegistros();
+            actualizarEstadisticas();
+          } else {
+            document.getElementById('cuerpoTabla').innerHTML = `
+              <tr><td colspan="13" class="text-center text-danger py-5">
+                ${res.message || 'Error desconocido al cargar datos'}
+              </td></tr>`;
+            resetEstadisticas();
+          }
+        })
+        .withFailureHandler(function(err) {
+          console.error('❌ Error de conexión:', err);
+          document.getElementById('cuerpoTabla').innerHTML = `
+            <tr><td colspan="13" class="text-center text-danger py-5">
+              ❌ Error de conexión: ${err.message || 'No se pudo conectar al servidor'}
+            </td></tr>`;
+          resetEstadisticas();
+        })
+        .obtenerRegistros(filtros);
+    }
+
+    /**
+     * @summary Reinicia la búsqueda (página 1) y recarga datos.
+     */
+    function filtrarRegistros() {
+      paginaActual = 1;
+      cargarRegistros();
+    }
+
+    /**
+     * @summary Resetea los contadores de estadísticas a 0.
+     * @private
+     */
+    function resetEstadisticas() {
+      document.getElementById('totalRegistros').textContent = '0';
+      document.getElementById('totalEntradas').textContent = '0';
+      document.getElementById('totalSalidas').textContent = '0';
+      document.getElementById('totalDentro').textContent = '0';
+    }
+
+    /**
+     * @summary Calcula y actualiza los contadores visuales.
+     * @description Cuenta registros totales, con entrada, con salida y dentro del centro.
+     */
+    function actualizarEstadisticas() {
+      const total = registrosData.length;
+      const conEntrada = registrosData.filter(r => r.fechaEntrada && r.horaEntrada).length;
+      const conSalida = registrosData.filter(r => r.fechaSalida && r.horaSalida).length;
+      const enSitio = registrosData.filter(r => ['sí', 'si'].includes(String(r.dentroCentro).toLowerCase())).length;
+      
+      document.getElementById('totalRegistros').textContent = total;
+      document.getElementById('totalEntradas').textContent = conEntrada;
+      document.getElementById('totalSalidas').textContent = conSalida;
+      document.getElementById('totalDentro').textContent = enSitio;
+    }
+
+    // -------------------------------------------------------------------
+    // 3. RENDERIZADO DE TABLA
+    // -------------------------------------------------------------------
+    /**
+     * @summary Renderiza la tabla de registros basándose en la página actual.
+     * @description Slicing de array `registrosData`, creación de filas HTML
+     *              y actualización de la paginación.
+     */
+    function mostrarRegistros() {
+      const tbody = document.getElementById('cuerpoTabla');
+      if (!registrosData.length) {
+        tbody.innerHTML = `<tr><td colspan="13" class="text-center py-5">No se encontraron registros</td></tr>`;
+        document.getElementById('paginacion').innerHTML = '';
+        return;
+      }
+
+      const inicio = (paginaActual - 1) * registrosPorPagina;
+      const fin = inicio + registrosPorPagina;
+      const pagina = registrosData.slice(inicio, fin);
+      tbody.innerHTML = '';
+
+      // Iterar sobre los registros de la página actual
+      pagina.forEach((r, idx) => {
+        const idxGlobal = inicio + idx;
+        
+        // Manejo de URLs de Drive (Convertir a thumbnails para mejor rendimiento)
+        let fotoEnt = r.fotoEntrada || ''; 
+        let fotoSal = r.fotoSalida || '';
+
+        const urlEnt = convertirUrlDrive(fotoEnt);
+        const urlSal = convertirUrlDrive(fotoSal);
+        
+        // Determinar estado y color (Dentro/Fuera)
+        const dentro = ['sí', 'si'].includes(String(r.dentroCentro).toLowerCase());
+        const statusClass = dentro ? 'status-inside' : 'status-outside';
+        const statusText = dentro ? 'Dentro' : 'Fuera';
+        
+        // Formatear fechas para visualización
+        const fechaEntFormateada = formatearFechaParaTabla(r.timestamp); 
+        const fechaSalFormateada = formatearFechaParaTabla(r.fechaSalida);
+
+        // Construir fila HTML
+        const row = `
+          <tr>
+            <td>${r.cedula}</td>
+            <td>${r.nombre}</td>
+            <td>${r.centro}</td>
+            <td>${r.ciudad}</td>
+            <td>${fechaEntFormateada}</td>
+            <td>${formatoHora(r.horaEntrada)}</td>
+            <td>${urlEnt ? `<img src="${urlEnt}" class="foto-cell" onclick="openPhotoModal('${urlEnt}')">` : '<div class="no-photo">📷</div>'}</td>
+            <td>${fechaSalFormateada}</td>
+            <td>${formatoHora(r.horaSalida)}</td>
+            <td>${urlSal ? `<img src="${urlSal}" class="foto-cell" onclick="openPhotoModal('${urlSal}')">` : '<div class="no-photo">📷</div>'}</td>
+            <td>
+              <button class="btn-ver-detalle" onclick="mostrarDetalle(${idxGlobal})">
+                <i class="bi bi-eye-fill"></i>
+              </button>
+            </td>
+          </tr>`;
+        tbody.innerHTML += row;
+      });
+
+      actualizarPaginacion();
+    }
+
+    // -------------------------------------------------------------------
+    // 4. PAGINACIÓN (Lógica Visual)
+    // -------------------------------------------------------------------
+    /**
+     * @summary Genera los botones de números de página.
+     * @description Crea botones "Anterior", Números y "Siguiente". Lógica de rangos.
+     */
+    function actualizarPaginacion() {
+      const total = Math.ceil(registrosData.length / registrosPorPagina);
+      const ul = document.getElementById('paginacion');
+      ul.innerHTML = '';
+
+      // Botón Anterior
+      const prev = document.createElement('li');
+      prev.className = `page-item ${paginaActual === 1 ? 'disabled' : ''}`;
+      prev.innerHTML = `<a class="page-link" href="#" onclick="cambiarPagina(${paginaActual - 1})">&laquo;</a>`;
+      ul.appendChild(prev);
+
+      // Botones Numéricos (Muestra solo algunos si hay muchas páginas)
+      for (let i = 1; i <= total; i++) {
+        // Lógica para mostrar solo algunos números y puntos suspensivos (...)
+        if (total <= 7 || (i === 1 || i === total || (i >= paginaActual - 1 && i <= paginaActual + 1))) {
+          const li = document.createElement('li');
+          li.className = `page-item ${i === paginaActual ? 'active' : ''}`;
+          li.innerHTML = `<a class="page-link" href="#" onclick="cambiarPagina(${i})">${i}</a>`;
+          ul.appendChild(li);
+        } else if ((i === paginaActual - 2 || i === paginaActual + 2) && total > 7) {
+          // Puntos suspensivos
+          const li = document.createElement('li');
+          li.className = 'page-item disabled';
+          li.innerHTML = '<a class="page-link">...</a>';
+          ul.appendChild(li);
+        }
+      }
+
+      // Botón Siguiente
+      const next = document.createElement('li');
+      next.className = `page-item ${paginaActual === total ? 'disabled' : ''}`;
+      next.innerHTML = `<a class="page-link" href="#" onclick="cambiarPagina(${paginaActual + 1})">&raquo;</a>`;
+      ul.appendChild(next);
+    }
+
+    /**
+     * @summary Cambia la página actual y renderiza.
+     * @param {Number} p - Número de página destino.
+     */
+    function cambiarPagina(p) {
+      const max = Math.ceil(registrosData.length / registrosPorPagina);
+      if (p < 1 || p > max) return;
+      paginaActual = p;
+      mostrarRegistros();
+    }
+
+    // -------------------------------------------------------------------
+    // 5. MODAL DE DETALLES
+    // -------------------------------------------------------------------
+    /**
+     * @summary Abre el modal y pobla los datos del registro seleccionado.
+     * @description Extrae el registro del array global y llena el HTML del modal.
+     * @param {Number} idx - Índice global del registro en `registrosData`.
+     */
+    function mostrarDetalle(idx) {
+      const r = registrosData[idx];
+      
+      // Procesar URLs
+      let fotoEnt = r.fotoEntrada || ''; 
+      let fotoSal = r.fotoSalida || '';
+
+      const urlEnt = convertirUrlDrive(fotoEnt);
+      const urlSal = convertirUrlDrive(fotoSal);
+      
+      // Helper interno para formatear fechas (reutilizado)
+      function formatearFecha(isoString) {
+         if (!isoString) return '-';
+         const d = new Date(isoString);
+         return isNaN(d.getTime()) ? '-' : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+      }
+
+      // --- Llenar datos de ENTRADA ---
+      document.getElementById('detalleFechaEntrada').textContent = formatearFecha(r.timestamp);
+      document.getElementById('detalleHoraEntrada').textContent = formatoHora(r.horaEntrada);
+      document.getElementById('detalleCentroEntrada').textContent = r.centro || '-';
+      
+      const dentroEnt = ['sí', 'si'].includes(String(r.dentroCentro).toLowerCase());
+      document.getElementById('detalleDentroEntrada').innerHTML =
+        `<span class="status-badge ${dentroEnt ? 'status-inside' : 'status-outside'}">${dentroEnt ? 'Dentro' : 'Fuera'}</span>`;
+
+      if (urlEnt) {
+        document.getElementById('detalleFotoEntrada').src = urlEnt;
+        document.getElementById('detalleFotoEntrada').style.display = 'block';
+        document.getElementById('detalleFotoEntradaVacia').style.display = 'none';
+      } else {
+        document.getElementById('detalleFotoEntrada').style.display = 'none';
+        document.getElementById('detalleFotoEntradaVacia').style.display = 'block';
+      }
+
+      if (r.lat && r.lng) {
+        document.getElementById('mapLinkEntrada').href = `https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}`;
+        document.getElementById('mapLinkEntrada').style.display = 'block';
+      } else {
+        document.getElementById('mapLinkEntrada').style.display = 'none';
+      }
+
+      // --- Llenar datos de SALIDA ---
+      document.getElementById('detalleFechaSalida').textContent = formatearFecha(r.fechaSalida);
+      document.getElementById('detalleHoraSalida').textContent = formatoHora(r.horaSalida);
+      document.getElementById('detalleCentroSalida').textContent = r.centro || '-';
+      
+      // Leer estado salida
+      const dentroSal = r.dentroCentroSal || '-';
+      const esDentroSal = ['sí', 'si'].includes(String(dentroSal).toLowerCase());
+      
+      document.getElementById('detalleDentroSalida').innerHTML =
+        `<span class="status-badge ${esDentroSal ? 'status-inside' : 'status-outside'}">${esDentroSal ? 'Dentro' : 'Fuera'}</span>`;
+
+      if (urlSal) {
+        document.getElementById('detalleFotoSalida').src = urlSal;
+        document.getElementById('detalleFotoSalida').style.display = 'block';
+        document.getElementById('detalleFotoSalidaVacia').style.display = 'none';
+      } else {
+        document.getElementById('detalleFotoSalida').style.display = 'none';
+        document.getElementById('detalleFotoSalidaVacia').style.display = 'block';
+      }
+
+      if (r.lat && r.lng) {
+        document.getElementById('mapLinkSalida').href = `https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}`;
+        document.getElementById('mapLinkSalida').style.display = 'block';
+      } else {
+        document.getElementById('mapLinkSalida').style.display = 'none';
+      }
+
+      // Mostrar Modal
+      document.getElementById('detalleModal').style.display = 'block';
+    }
+
+    function closeDetalleModal() {
+      document.getElementById('detalleModal').style.display = 'none';
+    }
+
+    // -------------------------------------------------------------------
+    // 6. VISOR DE FOTOS (Modal Overlay)
+    // -------------------------------------------------------------------
+    function openPhotoModal(url) {
+      document.getElementById('modalImage').src = url.replace('sz=s1000', 'sz=s1200');
+      document.getElementById('photoModal').style.display = 'block';
+    }
+
+    function closePhotoModal() {
+      document.getElementById('photoModal').style.display = 'none';
+    }
+
+    // -------------------------------------------------------------------
+    // 7. EXPORTAR A CSV
+    // -------------------------------------------------------------------
+    /**
+     * @summary Genera y descarga el reporte en formato Excel (CSV).
+     * @description Llama a la función backend `exportarRegistrosExcel`, recibe el contenido CSV
+     *              como string y crea un Blob para descargarlo automáticamente.
+     */
+    function exportarRegistros() {
+      // Obtener filtros actuales del DOM
+      const filtros = {
+        fechaInicio: document.getElementById('fechaInicio').value,
+        fechaFin: document.getElementById('fechaFin').value,
+        cedula: document.getElementById('filtroCedula').value,
+        nombre: document.getElementById('filtroNombre').value,
+        centro: document.getElementById('filtroCentro').value
+      };
+
+      // Alerta de carga
+      Swal.fire({ title: 'Exportando...', didOpen: () => Swal.showLoading() });
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          Swal.close();
+          if (res.status === 'ok') {
+            // Crear Blob con BOM UTF-8 para Excel correcto
+            const blob = new Blob(["\ufeff", res.csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = res.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            Swal.fire('Éxito', 'Archivo descargado.', 'success');
+          } else {
+            Swal.fire('Error', res.message || 'Error al exportar.', 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.close();
+          Swal.fire('Error', err.message, 'error');
+        })
+        .exportarRegistrosExcel(filtros);
+    }
+
+    // -------------------------------------------------------------------
+    // 8. AUTOCOMPLETADO (Sugerencias de Búsqueda)
+    // -------------------------------------------------------------------
+    /**
+     * @summary Llama al backend para obtener sugerencias (Cédula, Nombre, Centro).
+     * @description Busca en la hoja "Respuestas" y muestra dropdown con coincidencias.
+     * @param {String} tipo - 'cedula', 'nombre' o 'centro'.
+     */
+    function buscarAutocomplete(tipo) {
+      clearTimeout(autocompleteTimeout);
+      const input = document.getElementById(`filtro${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+      const suggestionsDiv = document.getElementById(`autocomplete${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`);
+      const valor = input.value.trim();
+
+      if (valor.length < 2) {
+        suggestionsDiv.style.display = 'none';
+        return;
+      }
+
+      // Esperar 300ms para no saturar el servidor mientras el usuario escribe
+      autocompleteTimeout = setTimeout(() => {
+        google.script.run
+          .withSuccessHandler(suggestions => {
+            if (suggestions && suggestions.length > 0) {
+              suggestionsDiv.innerHTML = suggestions.map(s => `
+                <div class="autocomplete-suggestion" onclick="seleccionarSugerencia('${tipo}', '${s}')">${s}</div>
+              `).join('');
+              suggestionsDiv.style.display = 'block';
+            } else {
+              suggestionsDiv.style.display = 'none';
+            }
+          })
+          .withFailureHandler(() => {
+            suggestionsDiv.style.display = 'none';
+          })
+          .obtenerSugerencias(valor, tipo);
+      }, 300);
+    }
+
+    /**
+     * @summary Selecciona una sugerencia del dropdown y llena el input.
+     */
+    function seleccionarSugerencia(tipo, valor) {
+      document.getElementById(`filtro${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`).value = valor;
+      document.getElementById(`autocomplete${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`).style.display = 'none';
+      filtrarRegistros(); // Al seleccionar, se filtra automáticamente
+    }
+
+    /**
+     * @summary Cierra dropdowns si se hace clic fuera.
+     */
+    document.addEventListener('click', function(e) {
+      const inputs = ['filtroCedula', 'filtroNombre', 'filtroCentro'];
+      const suggestions = ['autocompleteCedula', 'autocompleteNombre', 'autocompleteCentro'];
+     
+      // Si el clic no fue dentro de un input ni de una sugerencia, cerrar todo
+      if (!inputs.some(id => e.target.id === id)) {
+        suggestions.forEach(id => {
+          document.getElementById(id).style.display = 'none';
+        });
+      }
+    });
+  </script>
+</body>
+</html>
