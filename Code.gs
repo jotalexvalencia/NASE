@@ -139,8 +139,8 @@ function asegurarEncabezadosRespuestas_(sh) {
 
 /**
  * @summary Obtiene registros filtrados de la hoja "Respuestas".
- * @description Lee la hoja, filtra por fecha y parsea los datos complejos.
- *              ✅ CORRECCIÓN: Formatea fechaEntrada igual que fechaSalida.
+ * @description Lee la hoja, filtra por fecha Y por texto (Cédula, Nombre, Centro).
+ *              ✅ CORRECCIÓN: Filtra por todos los campos en backend para consistencia CSV.
  * @param {Object} filtros - Objeto { fechaInicio, fechaFin, cedula, nombre, centro }.
  * @returns {Object} { status: 'ok'|'error', registros: Array, message: String }
  */
@@ -154,8 +154,16 @@ function obtenerRegistros(filtros) {
     const data = sh.getDataRange().getValues();
     if (data.length <= 1) return { status: 'ok', registros: [] };
     const tz = TZ;
+    
+    // Configuración de Fechas
     const fInicio = filtros.fechaInicio ? new Date(filtros.fechaInicio + 'T00:00:00') : null;
     const fFin = filtros.fechaFin ? new Date(filtros.fechaFin + 'T23:59:59') : null;
+
+    // Configuración de Filtros de Texto (Normalizados a minúsculas)
+    const fCedula = (filtros.cedula || '').toLowerCase();
+    const fNombre = (filtros.nombre || '').toLowerCase();
+    const fCentro = (filtros.centro || '').toLowerCase();
+
     const registros = [];
 
     for (let i = 1; i < data.length; i++) {
@@ -163,79 +171,71 @@ function obtenerRegistros(filtros) {
       if (!row || !row[RESP_I.CEDULA]) continue;
       
       // ------------------------------------------------------------------
-      // ✅ CORRECCIÓN: Formatear Fecha de Entrada correctamente
+      // Lógica de Fecha (Mantenida y optimizada)
       // ------------------------------------------------------------------
       let fechaEntradaStr = '';
       const fechaEntradaRaw = row[RESP_I.FECHA_ENT];
       
       if (fechaEntradaRaw instanceof Date && !isNaN(fechaEntradaRaw.getTime())) {
-        // Si es objeto Date válido, formatear a dd/MM/yyyy
         fechaEntradaStr = Utilities.formatDate(fechaEntradaRaw, tz, "dd/MM/yyyy");
       } else if (fechaEntradaRaw) {
-        // Si es string, verificar si ya está en formato correcto o necesita conversión
         const strTemp = String(fechaEntradaRaw).trim();
-        // Si contiene formato de fecha en inglés (Mon, Tue, etc.) o año 1899, intentar parsear
-        if (strTemp.includes('Mon') || strTemp.includes('Tue') || strTemp.includes('Wed') || 
-            strTemp.includes('Thu') || strTemp.includes('Fri') || strTemp.includes('Sat') || 
-            strTemp.includes('Sun') || strTemp.includes('1899') || strTemp.includes('GMT')) {
-          // Intentar parsear como Date y reformatear
+        if (strTemp.includes('Mon') || strTemp.includes('Sun') || strTemp.includes('1899') || strTemp.includes('GMT')) {
           const tempDate = new Date(strTemp);
           if (!isNaN(tempDate.getTime()) && tempDate.getFullYear() > 1900) {
             fechaEntradaStr = Utilities.formatDate(tempDate, tz, "dd/MM/yyyy");
           } else {
-            fechaEntradaStr = strTemp; // Dejar como está si no se puede parsear
+            fechaEntradaStr = strTemp;
           }
         } else {
-          fechaEntradaStr = strTemp; // Ya está en formato texto, usar directamente
+          fechaEntradaStr = strTemp;
         }
       }
 
-      // Usar fechaEntradaStr para construir el timestamp
-      let fechaStr = fechaEntradaStr;
-      
-      // ------------------------------------------------------------------
-      // Limpieza de Hora de Entrada
-      // ------------------------------------------------------------------
       let horaEntradaStr = '';
       const horaEntradaRaw = row[RESP_I.HORA_ENT];
-      
       if (horaEntradaRaw instanceof Date) {
         horaEntradaStr = Utilities.formatDate(horaEntradaRaw, tz, "HH:mm:ss");
       } else if (horaEntradaRaw) {
         const strHora = String(horaEntradaRaw).trim();
-        // Extraer solo la parte HH:mm:ss si hay basura
         const matchHora = strHora.match(/(\d{1,2}:\d{2}(:\d{2})?)/);
         horaEntradaStr = matchHora ? matchHora[1] : strHora;
       }
-      
       if (!horaEntradaStr) horaEntradaStr = '00:00:00';
       
-      // ------------------------------------------------------------------
-      // Construcción de la Fecha Final para filtros
-      // ------------------------------------------------------------------
+      // Construir timestamp para comparación de rangos
       let tsEntrada = null;
-      if (fechaStr && horaEntradaStr) {
-        const parts = fechaStr.split('/');
+      if (fechaEntradaStr) {
+        const parts = fechaEntradaStr.split('/');
         if (parts.length === 3 && parts[2].length === 4) {
-          // Formato dd/MM/yyyy -> YYYY-MM-DD
           tsEntrada = new Date(parts[2] + '-' + parts[1] + '-' + parts[0] + 'T' + horaEntradaStr);
         }
       }
-      
       if (!tsEntrada || isNaN(tsEntrada)) continue; 
 
       const tiempoRegistro = tsEntrada.getTime();
       if (fInicio && tiempoRegistro < fInicio.getTime()) continue;
       if (fFin && tiempoRegistro > fFin.getTime()) continue;
 
+      // ------------------------------------------------------------------
+      // ✅ NUEVO: Filtros de Texto en Backend
+      // ------------------------------------------------------------------
+      const cedulaVal = String(row[RESP_I.CEDULA] || '').trim();
+      const nombreVal = String(row[RESP_I.NOMBRE] || '').trim();
+      const centroVal = String(row[RESP_I.CENTRO] || '').trim();
+
+      if (fCedula && cedulaVal.toLowerCase().indexOf(fCedula) === -1) continue;
+      if (fNombre && nombreVal.toLowerCase().indexOf(fNombre) === -1) continue;
+      if (fCentro && centroVal.toLowerCase().indexOf(fCentro) === -1) continue;
+
+      // ------------------------------------------------------------------
+      // Formateo de Salida y Objeto de Retorno
+      // ------------------------------------------------------------------
       const fechaVisualISO = tsEntrada.toISOString();
       
-      // ------------------------------------------------------------------
-      // ✅ CORRECCIÓN: Formatear Hora de Salida correctamente
-      // ------------------------------------------------------------------
+      // ... (Lógica de formateo de hora salida y fecha salida igual que antes) ...
       let horaSalidaStr = '';
       const horaSalidaRaw = row[RESP_I.HORA_SAL];
-      
       if (horaSalidaRaw instanceof Date) {
         horaSalidaStr = Utilities.formatDate(horaSalidaRaw, tz, "HH:mm:ss");
       } else if (horaSalidaRaw) {
@@ -250,19 +250,13 @@ function obtenerRegistros(filtros) {
         horaSalidaStr = '-';
       }
       
-      // ------------------------------------------------------------------
-      // ✅ CORRECCIÓN: Formatear Fecha de Salida correctamente
-      // ------------------------------------------------------------------
       let fechaSalidaStr = '';
       const fechaSalidaRaw = row[RESP_I.FECHA_SAL];
-      
       if (fechaSalidaRaw instanceof Date && !isNaN(fechaSalidaRaw.getTime())) {
         fechaSalidaStr = Utilities.formatDate(fechaSalidaRaw, tz, "dd/MM/yyyy");
       } else if (fechaSalidaRaw) {
         const strTemp = String(fechaSalidaRaw).trim();
-        if (strTemp.includes('Mon') || strTemp.includes('Tue') || strTemp.includes('Wed') || 
-            strTemp.includes('Thu') || strTemp.includes('Fri') || strTemp.includes('Sat') || 
-            strTemp.includes('Sun') || strTemp.includes('GMT')) {
+        if (strTemp.includes('Mon') || strTemp.includes('Sun') || strTemp.includes('GMT')) {
           const tempDate = new Date(strTemp);
           if (!isNaN(tempDate.getTime()) && tempDate.getFullYear() > 1900) {
             fechaSalidaStr = Utilities.formatDate(tempDate, tz, "dd/MM/yyyy");
@@ -274,23 +268,17 @@ function obtenerRegistros(filtros) {
         }
       }
 
-      // Coordenadas
       let lat = row[RESP_I.LAT];
       let lng = row[RESP_I.LNG];
       if (lat instanceof Date) lat = lat.getTime().toString();
       if (lng instanceof Date) lng = lng.getTime().toString();
 
-      const dentroSalida = String(row[RESP_I.DENTRO_SAL] || '').trim();
-
-      // ------------------------------------------------------------------
-      // ✅ Construir objeto de registro con fechas ya formateadas
-      // ------------------------------------------------------------------
       const reg = {
         timestamp: fechaVisualISO,
         timestampRaw: tiempoRegistro,
-        cedula: String(row[RESP_I.CEDULA] || '').trim(),
-        nombre: String(row[RESP_I.NOMBRE] || 'Desconocido').trim(),
-        centro: String(row[RESP_I.CENTRO] || '').trim(),
+        cedula: cedulaVal,
+        nombre: nombreVal,
+        centro: centroVal,
         ciudad: String(row[RESP_I.CIUDAD] || '').trim(),
         fotoUrl: String(row[RESP_I.FOTO] || '').trim(),
         dentroCentro: String(row[RESP_I.DENTRO] || 'No').trim(),
@@ -300,13 +288,13 @@ function obtenerRegistros(filtros) {
         lng: lng,
         dirGeo: String(row[RESP_I.DIR_GEO] || '').trim(),
         observaciones: String(row[RESP_I.OBS] || '').trim(),
-        fechaEntrada: fechaEntradaStr,    // ✅ Ya formateado como dd/MM/yyyy
-        horaEntrada: horaEntradaStr,      // ✅ Ya formateado como HH:mm:ss
+        fechaEntrada: fechaEntradaStr,
+        horaEntrada: horaEntradaStr,
         fotoEntrada: String(row[RESP_I.FOTO_ENT] || '').trim(),
-        fechaSalida: fechaSalidaStr,      // ✅ Ya formateado como dd/MM/yyyy
-        horaSalida: horaSalidaStr,        // ✅ Ya formateado como HH:mm:ss
+        fechaSalida: fechaSalidaStr,
+        horaSalida: horaSalidaStr,
         fotoSalida: String(row[RESP_I.FOTO_SAL] || '').trim(),
-        dentroCentroSal: dentroSalida || '-'
+        dentroCentroSal: String(row[RESP_I.DENTRO_SAL] || '').trim() || '-'
       };
       registros.push(reg);
     }
@@ -320,66 +308,46 @@ function obtenerRegistros(filtros) {
 
 /**
  * @summary Exporta los registros de la hoja "Respuestas" a formato CSV.
- * @description Usa los datos ya formateados de obtenerRegistros.
- *              ✅ Las fechas ya vienen en formato dd/MM/yyyy desde obtenerRegistros.
+ * @description Utiliza los datos pre-filtrados de obtenerRegistros.
  * @param {Object} filtros - Objeto { cedula, nombre, centro, fechaInicio, fechaFin }.
  * @returns {Object} { status: 'ok', filename: String, csvContent: String }.
  */
 function exportarRegistrosExcel(filtros) {
   if (!filtros) filtros = {};
   
-  // 1. Obtener los datos filtrados (ya vienen con fechas formateadas)
+  // 1. Obtener datos YA FILTRADOS por fecha y texto
   const resultado = obtenerRegistros(filtros);
   if (resultado.status !== 'ok') return { status: 'error', message: 'Error datos' };
   
-  // 2. Definir cabecera del CSV
   let csv = 'Cedula,Nombre,Centro,Ciudad,DentroCentroEnt,FotoEntrada,FechaEntrada,HoraEntrada,DentroCentroSal,FotoSalida,FechaSalida,HoraSalida\n';
 
-  // 3. Definir filtros de búsqueda
-  const fCedula = (filtros.cedula || '').toLowerCase();
-  const fNombre = (filtros.nombre || '').toLowerCase();
-  const fCentro = (filtros.centro || '').toLowerCase();
-
-  // 4. Función auxiliar para escapar valores CSV
   const escape = function(str) { 
     return '"' + String(str || '').replace(/"/g, '""') + '"'; 
   };
 
-  // 5. Recorrer cada registro y construir líneas CSV
   for (let i = 0; i < resultado.registros.length; i++) {
     const r = resultado.registros[i];
-    let pasa = true;
+    // No necesitamos validar 'pasa' aquí porque obtenerRegistros ya filtró
+    const dentroSalida = r.dentroCentroSal || r.dentroCentro || '-'; 
     
-    // Validar filtros
-    if (fCedula && r.cedula.toLowerCase().indexOf(fCedula) === -1) pasa = false;
-    if (fNombre && r.nombre.toLowerCase().indexOf(fNombre) === -1) pasa = false;
-    if (fCentro && r.centro.toLowerCase().indexOf(fCentro) === -1) pasa = false;
+    const csvLinea = [
+      escape(r.cedula), 
+      escape(r.nombre), 
+      escape(r.centro), 
+      escape(r.ciudad),
+      escape(r.dentroCentro), 
+      escape(r.fotoEntrada), 
+      escape(r.fechaEntrada), 
+      escape(formatoHoraExportar(r.horaEntrada)),
+      escape(dentroSalida), 
+      escape(r.fotoSalida), 
+      escape(r.fechaSalida), 
+      escape(formatoHoraExportar(r.horaSalida))
+    ].join(',') + '\n';
     
-    if (pasa) {
-      // Determinar valor para 'Dentro Salida'
-      const dentroSalida = r.dentroCentroSal || r.dentroCentro || '-'; 
-      
-      // ✅ Las fechas ya vienen formateadas desde obtenerRegistros
-      const csvLinea = [
-        escape(r.cedula), 
-        escape(r.nombre), 
-        escape(r.centro), 
-        escape(r.ciudad),
-        escape(r.dentroCentro), 
-        escape(r.fotoEntrada), 
-        escape(r.fechaEntrada),                    // ✅ Ya es dd/MM/yyyy
-        escape(formatoHoraExportar(r.horaEntrada)),
-        escape(dentroSalida), 
-        escape(r.fotoSalida), 
-        escape(r.fechaSalida),                     // ✅ Ya es dd/MM/yyyy
-        escape(formatoHoraExportar(r.horaSalida))
-      ].join(',') + '\n';
-      
-      csv += csvLinea;
-    }
+    csv += csvLinea;
   }
   
-  // 6. Retornar resultado final
   return {
     status: 'ok',
     filename: 'Reporte_NASE_' + Date.now() + '.csv',
