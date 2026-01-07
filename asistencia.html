@@ -552,7 +552,7 @@
           <tr>
             <td class="fw-bold text-center-cell">${r.cedula}</td>
             <td>${r.nombre}</td>
-            <td class="text-center-cell">${r.fecha}</td>
+            <td class="text-center-cell">${formatearFechaSeguro(r.fecha)}</td>
             <!-- ✅ Columna Visual Rango: Usa 'turnosDetalle' (Ej: "24/12/2025 21:00 - 25/12/2025 05:00") -->
             <td class="text-center-cell small">
                 <div>${r.turnosDetalle}</div>
@@ -627,13 +627,14 @@
      * @description Llama a `exportarAsistenciaCSV` en el backend, recibe el string CSV
      *              y crea un Blob para descargarlo en el navegador.
      */
-    function exportarDatos() {
+        function exportarDatos() {
       // Obtener filtros actuales
       const filtros = {
         fechaInicio: document.getElementById('filtroFechaInicio').value,
         fechaFin: document.getElementById('filtroFechaFin').value,
         cedula: document.getElementById('filtroCedula').value,
-        nombre: document.getElementById('filtroNombre').value
+        nombre: document.getElementById('filtroNombre').value,
+        tipoDia: document.getElementById('filtroTipoDia').value // <--- ✅ ESTA ES LA LÍNEA QUE FALTABA
       };
 
       // Mostrar SweetAlert de carga
@@ -725,6 +726,32 @@
         });
       }
     });
+        /**
+     * @summary Formatea fecha de forma segura para evitar errores MM/DD.
+     * @description Si el backend envía String (dd/mm/yyyy), lo mantiene. 
+     *              Si envía Date u Objeto, lo formatea.
+     */
+    function formatearFechaSeguro(inputDate) {
+      if (!inputDate) return '-';
+      const str = String(inputDate);
+
+      // Si el dato ya es texto con formato fecha (ej: "02/01/2026"), devolverlo tal cual
+      // Esto evita que el navegador lo interprete mal como MM/DD
+      if (str.length === 10 && str.includes('/')) {
+        return str;
+      }
+
+      try {
+        const date = new Date(inputDate);
+        if (isNaN(date.getTime())) return str;
+        const dia = String(date.getDate()).padStart(2, '0');
+        const mes = String(date.getMonth() + 1).padStart(2, '0');
+        const anio = date.getFullYear();
+        return `${dia}/${mes}/${anio}`;
+      } catch (e) {
+        return '-';
+      }
+    }
   </script>
 </body>
 </html>
