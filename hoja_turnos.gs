@@ -954,10 +954,14 @@ function resetearProcesoAsistencia() {
 // ===================================================================
 
 /**
- * @summary Obtiene datos de la hoja "Asistencia_SinValores" para mostrar en el HTML.
- * @description Lee la hoja generada, aplica filtros de fechas y devuelve JSON limpio.
+ * @summary Obtiene datos de la hoja "Asistencia_SinValores" con filtros avanzados.
+ * @description Lee la hoja generada y aplica filtros de:
+ *              - Rango de Fechas (columna "Fecha")
+ *              - Cédula (Columna 0)
+ *              - Nombre (Columna 1)
+ *              - Tipo Día (Columnas 7 y 8)
  *
- * @param {Object} filtros - { fechaInicio: String, fechaFin: String }.
+ * @param {Object} filtros - { fechaInicio, fechaFin, cedula, nombre, tipoDia }.
  * @returns {Object} { status: 'ok', registros: Array<{...}> }.
  */
 function obtenerDataAsistencia(filtros) {
@@ -973,38 +977,60 @@ function obtenerDataAsistencia(filtros) {
   var lastRow = hoja.getLastRow();
   if (lastRow < 2) return { status: 'ok', registros: [] };
 
-  // Leer datos usando getDisplayValues para ver el valor como usuario lo ve
+  // Leer datos usando getDisplayValues para ver el valor como el usuario lo ve (fechas dd/mm/yyyy)
   var datos = hoja.getRange(2, 1, lastRow - 1, hoja.getLastColumn()).getDisplayValues();
 
-  // Parsear filtros de fecha
+  // --- PARSEO DE FILTROS ---
   var fInicio = filtros.fechaInicio ? new Date(filtros.fechaInicio + 'T00:00:00') : null;
   var fFin = filtros.fechaFin ? new Date(filtros.fechaFin + 'T23:59:59') : null;
+  
+  var fCedula = (filtros.cedula || '').toLowerCase().trim();
+  var fNombre = (filtros.nombre || '').toLowerCase().trim();
+  var fTipoDia = (filtros.tipoDia || ''); // 'Normal', 'Domingo', 'Festivo'
 
   var registros = [];
 
   for (var i = 0; i < datos.length; i++) {
     var fila = datos[i];
 
-    // Fila[4] es la fecha para filtrar
+    // --- 1. FILTRO DE FECHA ---
+    // Columna 4 es "Fecha" (Ej: 23/12/2025)
     var fechaFila = null;
     if (fila[4]) {
       var parts = fila[4].split('/');
       if (parts.length === 3) {
+        // Crear fecha objeto para comparación
         fechaFila = new Date(parts[2] + '-' + parts[1] + '-' + parts[0] + 'T00:00:00');
       }
     }
 
-    // Aplicar filtros de fecha
     if (fInicio && fechaFila && fechaFila < fInicio) continue;
     if (fFin && fechaFila && fechaFila > fFin) continue;
 
-    var turnosDetalle = fila[3] || "Sin registro";
+    // --- 2. FILTRO CÉDULA ---
+    if (fCedula && String(fila[0]).toLowerCase().indexOf(fCedula) === -1) continue;
+
+    // --- 3. FILTRO NOMBRE ---
+    if (fNombre && String(fila[1]).toLowerCase().indexOf(fNombre) === -1) continue;
+
+    // --- 4. FILTRO TIPO DÍA ---
+    if (fTipoDia) {
+      // Columna 7: Tipo Día Inicio, Columna 8: Tipo Día Fin
+      var tInicio = String(fila[7] || '');
+      var tFin = String(fila[8] || '');
+
+      // El turno pasa si INICIA o TERMINA en el tipo de día seleccionado
+      if (tInicio !== fTipoDia && tFin !== fTipoDia) continue;
+    }
+
+    // --- 5. CONSTRUCCIÓN DEL OBJETO ---
+    var turnosDetalle = fila[3] || "Sin registro"; // Columna "Rango de Fecha"
 
     registros.push({
       cedula: fila[0],
       nombre: fila[1] || "Sin Nombre",
       centro: fila[2] || "Sin Centro",
-      fecha: fila[4],
+      fecha: fila[4], // Fecha de inicio formateada
       turnosDetalle: turnosDetalle,
       horaInicio: fila[5],
       horaSalida: fila[6],
