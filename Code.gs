@@ -68,31 +68,112 @@ function diagnosticarSistema() {
   } catch (e) {
     Logger.log('ERROR CRÍTICO: ' + e.toString());
   }
-}
+} 
 
 // -------------------------------------------------------------------
-// 2. WEB APP ROUTING
+// 1.2 CONFIGURACIÓN DE PERMISOS (SEGURIDAD)
+// -------------------------------------------------------------------
+// Agrega aquí los correos que tienen acceso a cada módulo.
+// Puedes agregar varios correos separados por comas entre comillas.
+
+const PERMISOS_CONSULTA = [
+  "supervisorbogota1@nasecolombia.com.co",
+  "supervisor9bogota@nasecolombia.com.co",
+  "supervisorcali1@nasecolombia.com.co",
+  "supervisor12bogota@nasecolombia.com.co",
+  "supervisorbarraquer@nasecolombia.com.co",
+  "supervisorcali2@nasecolombia.com.co",
+  "supervisor4bogota@nasecolombia.com.co",
+  "supervisor11bogota@nasecolombia.com.co", 
+  "supervisorinternodesa@nasecolombia.com.co",
+  "supervisor3quindio@nasecolombia.com.co",
+  "supervisorinterno@nasecolombia.com.co",
+  "supervisormedellin@nasecolombia.com.co",
+  "supervisor1pereira@nasecolombia.com.co",
+  "supervisor2pereira@nasecolombia.com.co",
+  "supervisorpereira2@nasecolombia.com.co",
+  "supervisor5pereira@nasecolombia.com.co",
+  "supervisor6pereira@nasecolombia.com.co",
+  "supervisorpereira4@nasecolombia.com.co",
+  "supervisor5@nasecolombia.com.co",
+  "supervisor3cali@nasecolombia.com.co",
+  "supervisorcali2@nasecolombia.com.co",
+  "supervisorcartagena@nasecolombia.com.co",
+  "supervisoribague@nasecolombia.com.co",
+  "supervisorneiva@nasecolombia.com.co",
+  "supervisorcali2@nasecolombia.com.co",
+  "supervisorcajica@nasecolombia.com.co",
+  "supervisor7bogota@nasecolombia.com.co",
+  "supervisor2quindio@nasecolombia.com.co",
+  "supervisorbogota2@nasecolombia.com.co",
+  "supervisor1bogota@nasecolombia.com.co",
+  "supervisorcali1@nasecolombia.com.co",
+  "analistatd@nasecolombia.com.co",
+  "directorctt@nasecolombia.com.co",
+  "analistaprogramador@nasecolombia.com.co"
+];
+
+const PERMISOS_ASISTENCIA = [
+  "analistanomina1@nasecolombia.com.co",
+  "lidernomina@nasecolombia.com.co",
+  "analistatd@nasecolombia.com.co",
+  "directorctt@nasecolombia.com.co",
+  "analistaprogramador@nasecolombia.com.co"
+];
+
+// Los supervisores también pueden actualizar centros
+const PERMISOS_CENTROS = PERMISOS_CONSULTA;
+
+// -------------------------------------------------------------------
+// 2. WEB APP ROUTING (CON CONTROL DE ACCESO)
 // -------------------------------------------------------------------
 function doGet(e) {
-  const page = e.parameter.page || 'form';
+  // Obtener el correo del usuario logueado en la cuenta de Google
+  var emailUsuario = Session.getActiveUser().getEmail();
+  var page = e.parameter.page || 'form';
 
+  // -------------------------------------------------------------------
+  // 1.2 PÁGINA CONSULTA (Solo Supervisores)
+  // -------------------------------------------------------------------
   if (page === 'consulta') {
+    // Verificar si el correo está en la lista de PERMISOS_CONSULTA
+    if (PERMISOS_CONSULTA.indexOf(emailUsuario) === -1) {
+      return generarPaginaAccesoDenegado(emailUsuario, "Consulta de Registros");
+    }
     return HtmlService.createTemplateFromFile('consulta')
       .evaluate()
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
       .setTitle('NASE - Consulta Registros');
 
+  // -------------------------------------------------------------------
+  // 1.3 PÁGINA ASISTENCIA (Solo Financiera)
+  // -------------------------------------------------------------------
   } else if (page === 'asistencia') {
+    // Verificar si el correo está en la lista de PERMISOS_ASISTENCIA
+    if (PERMISOS_ASISTENCIA.indexOf(emailUsuario) === -1) {
+      return generarPaginaAccesoDenegado(emailUsuario, "Nómina y Asistencia");
+    }
     return HtmlService.createTemplateFromFile('asistencia')
       .evaluate()
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
       .setTitle('NASE - Consulta Asistencia');
 
+  // -------------------------------------------------------------------
+  // 1.4 PÁGINA ACTUALIZAR CENTROS (Solo Supervisores)
+  // -------------------------------------------------------------------
   } else if (page === 'actualizar_centros') {
+    // Verificar si el correo está en la lista de PERMISOS_CENTROS (que usa la de Consulta)
+    if (PERMISOS_CENTROS.indexOf(emailUsuario) === -1) {
+      return generarPaginaAccesoDenegado(emailUsuario, "Actualización de Centros");
+    }
+    // Si tiene permiso, ejecuta la función original de ese módulo
     return doGetActualizarCentrosPublico(e);
 
+  // -------------------------------------------------------------------
+  // 1.1 PÁGINA FORM (PÚBLICA - Default)
+  // -------------------------------------------------------------------
   } else {
     const template = HtmlService.createTemplateFromFile('form');
     try {
@@ -874,6 +955,43 @@ function obtenerSugerencias(query, tipo) {
 
 function mantenerSistemaActivo() {
   console.log("Sistema activo: " + new Date());
+} 
+
+// ===================================================================
+// GESTIÓN DE ACCESO Y ERRORES
+// ===================================================================
+
+/**
+ * @summary Genera una página HTML de "Acceso Denegado".
+ * @description Se muestra cuando un usuario intenta acceder a una página sin permisos.
+ * @param {String} email - Correo del usuario bloqueado.
+ * @param {String} modulo - Nombre del módulo al que intentó acceder.
+ */
+function generarPaginaAccesoDenegado(email, modulo) {
+  var html = '<!DOCTYPE html><html><head>';
+  html += '<meta charset="utf-8"/>';
+  html += '<meta name="viewport" content="width=device-width, initial-scale=1">';
+  html += '<title>Acceso Denegado - NASE</title>';
+  html += '<style>';
+  html += 'body{font-family:"Poppins", Arial, sans-serif;background-color:#f6f8fb;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}';
+  html += '.card{background:#fff;padding:40px;border-radius:16px;box-shadow:0 4px 15px rgba(0,0,0,0.1);text-align:center;max-width:400px;}';
+  html += '.icon{font-size:50px;color:#dc3545;margin-bottom:20px;}';
+  html += 'h1{color:#dc3545;margin-bottom:10px;font-size:24px;}';
+  html += 'p{color:#555;line-height:1.6;font-size:14px;}';
+  html += '</style></head><body>';
+  
+  html += '<div class="card">';
+  html += '<div class="icon">🚫</div>';
+  html += '<h1>Acceso Denegado</h1>';
+  html += '<p>No tienes permisos para acceder al módulo:</p>';
+  html += '<p><strong>' + modulo + '</strong></p>';
+  html += '<hr style="border:0;border-top:1px solid #eee;margin:20px 0;">';
+  html += '<p style="font-size:12px;color:#888;">Usuario: ' + email + '</p>';
+  html += '<p style="font-size:12px;">Si crees que es un error, contacta al área de Sistemas.</p>';
+  html += '</div>';
+  
+  html += '</body></html>';
+  return HtmlService.createHtmlOutput(html).setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function limpiarCoordenadasEnRespuestas() {
