@@ -24,13 +24,13 @@ GEO.CONFIG = {
   SHEET_CENTROS: "Centros",      // Nombre de la hoja de referencia de centros
   
   // Mapeo de columnas en la hoja 'Respuestas' (Índices 0-based para Arrays)
-  R_COL_LAT: 6,            // Columna F: Latitud GPS
-  R_COL_LNG: 7,            // Columna G: Longitud GPS
-  R_COL_CIUDAD_GEO: 9,    // Columna I: Ciudad Geocodificada
-  R_COL_DIR_GEO: 10,       // Columna J: Dirección Geocodificada
-  R_COL_ACCURACY: 11,     // Columna K: Precisión GPS
-  R_COL_DENTRO_CENTRO: 12, // Columna L: ¿Está dentro del centro?
-  R_COL_DISTANCIA: 13,     // Columna M: Distancia al centro en metros
+  R_COL_LAT: 3,            // Columna D: Latitud GPS
+  R_COL_LNG: 4,            // Columna E: Longitud GPS
+  R_COL_CIUDAD_GEO: 6,    // Columna G: Ciudad Geocodificada
+  R_COL_DIR_GEO: 7,       // Columna H: Dirección Geocodificada
+  R_COL_ACCURACY: 8,     // Columna I: Precisión GPS
+  R_COL_DENTRO_CENTRO: 9, // Columna J: ¿Está dentro del centro?
+  R_COL_DISTANCIA: 10,     // Columna K: Distancia al centro en metros
  
   // Configuración de OpenCage (API Pagada de respaldo)
   OPENCAGE_DAILY_LIMIT: 2500, // Límite de peticiones gratuitas diarias (aproximado para este script)
