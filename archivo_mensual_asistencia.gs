@@ -4,22 +4,21 @@
 /**
  * @summary Módulo de Archivo Automático de Nómina.
  * @description Este archivo automatiza la generación de copias de seguridad
- *              de la hoja de nómina "Asistencia_SinValores" al final de cada mes.
+ * de la hoja de nómina "Asistencia_SinValores" al final de cada mes.
  *
  * @workflow
  * - 🔁 **Trigger Automático:** Se ejecuta el día 1 de cada mes a las 12:00 PM.
- * - 📅 **Target:** Archiva los datos del *mes anterior*.
- *   Ejemplo: Si se ejecuta el 1 de Febrero, archiva los datos de Enero.
- * - 📁 **Ubicación:** Crea un nuevo archivo de Google Sheets y lo guarda en una
- *   carpeta específica de Drive: "Archivos Asistencia Mensual NASE".
+ * - 📅 **Target:** Archiva los datos del *mes anterior* completo.
+ * Ejemplo: Al ejecutarse el 1 de Febrero, el archivo dirá "Enero".
+ * - 📁 **Ubicación:** Genera un Spreadsheet independiente en la carpeta:
+ * "Archivos Asistencia Mensual NASE" dentro de Google Drive.
  *
  * @constraints
- *   - ⛔ NO limpia la hoja original (Asistencia_SinValores).
- *   - ⛔ NO crea respaldos internos en el Spreadsheet actual.
- *   - ✅ Crea archivos nuevos por mes en Google Drive.
+ * - ⛔ NO limpia la hoja original (la limpieza la hace el módulo bimestral).
+ * - ✅ Aplica formato HH:mm:ss para evitar el error de visualización 1899.
  *
  * @author NASE Team
- * @version 1.1
+ * @version 1.2 (Corrección de Formato y Documentación Extendida)
  */
 
 // ===================================================================
@@ -28,22 +27,19 @@
 
 /**
  * @summary Instala el disparador mensual de archivo.
- * @description Función de instalación (manual o inicial).
- *              Utiliza `ensureTimeTrigger` (utility de `install_triggers`)
- *              para evitar duplicados y configurar la ejecución.
- * 
- * @schedule Día 1 de cada mes a las 12:00 PM.
+ * @description Configura la ejecución recurrente para asegurar que cada mes
+ * se genere un respaldo sin intervención humana.
+ * * @schedule Día 1 de cada mes a las 12:00 PM (Mediodía).
  */
 function instalarTriggersAsistenciaMensual() {
-  // Wrapper de seguridad para crear trigger si no existe
   ensureTimeTrigger("generarArchivoMensualAsistencia", function () {
     ScriptApp.newTrigger("generarArchivoMensualAsistencia")
       .timeBased()
-      .onMonthDay(1) // Se ejecuta el día 1 del mes
-      .atHour(12)    // A las 12:00 PM
+      .onMonthDay(1) // Ejecución mensual el primer día
+      .atHour(12)    // 12:00 PM
       .create();
   });
-  Logger.log("✅ Trigger mensual Asistencia_SinValores instalado.");
+  Logger.log("✅ Trigger mensual Asistencia_SinValores instalado satisfactoriamente.");
 }
 
 // ===================================================================
@@ -51,103 +47,89 @@ function instalarTriggersAsistenciaMensual() {
 // ===================================================================
 
 /**
- * @summary Genera el archivo histórico del mes anterior.
- * @description Función principal que se ejecuta automáticamente.
- *              1. Lee la hoja "Asistencia_SinValores".
- *              2. Calcula la fecha del mes anterior.
- *              3. Crea un nuevo Spreadsheet en Drive.
- *              4. Copia los datos al nuevo archivo.
- *              5. Mueve el archivo a la carpeta histórica.
- * 
- * @returns {void} Escribe logs en consola.
+ * @summary Genera el archivo histórico consolidado del mes anterior.
+ * @description Proceso técnico de 6 pasos:
+ * 1. Validación de la hoja de origen "Asistencia_SinValores".
+ * 2. Cálculo dinámico del nombre del mes anterior (Locale es-ES).
+ * 3. Creación de un nuevo archivo de Google Sheets en Drive.
+ * 4. Clonación de la hoja completa con formatos y fórmulas mediante .copyTo().
+ * 5. Aplicación de NumberFormat "HH:mm:ss" para corregir la visualización de horas.
+ * 6. Remoción de hojas residuales (Hoja 1) en el archivo de destino.
  */
 function generarArchivoMensualAsistencia() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const hoja = ss.getSheetByName('Asistencia_SinValores');
   
-  // Validar que exista la hoja de origen
+  // Validar existencia de datos antes de proceder.
   if (!hoja) {
-    Logger.log("❌ No se encontró la hoja 'Asistencia_SinValores' para archivar.");
+    Logger.log("❌ Error: No se encontró la hoja origen para el proceso de archivo.");
     return;
   }
 
   // -----------------------------------------------------------
-  // 1. CALCULAR FECHA DEL MES ANTERIOR (Contexto)
+  // 1. CONTEXTO TEMPORAL (Determinación de Mes y Año)
   // -----------------------------------------------------------
   const ahora = new Date();
-  // (Año actual, Mes actual - 1, Día 1)
-  // Ejemplo: Si es Feb 1st, esto da Jan 1st.
+  // Se resta 1 al mes actual para obtener el periodo vencido.
   const mesAnterior = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1);
-  
-  // Formatear nombre del mes (Ej: "enero", "febrero")
   const nombreMes = mesAnterior.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-  
-  // Crear nombre del archivo (Ej: "Asistencia_enero_2025")
   const nombreArchivo = `Asistencia_${nombreMes.replace(' ', '_')}`;
 
   // -----------------------------------------------------------
-  // 2. OBTENER O CREAR CARPETA DE DRIVE
+  // 2. GESTIÓN DE CARPETAS EN DRIVE
   // -----------------------------------------------------------
   const folder = obtenerOCrearCarpeta('Archivos Asistencia Mensual NASE');
 
   // -----------------------------------------------------------
-  // 3. CREAR NUEVO ARCHIVO SPREADSHEET
+  // 3. CREACIÓN DEL RECURSO (Spreadsheet)
   // -----------------------------------------------------------
   const archivo = SpreadsheetApp.create(nombreArchivo);
-  
-  // Mover el archivo recién creado a la carpeta específica
   DriveApp.getFileById(archivo.getId()).moveTo(folder);
 
   // -----------------------------------------------------------
-  // 4. COPIAR DATOS
+  // 4. COPIADO DE DATOS ESTRUCTURADOS
   // -----------------------------------------------------------
-  // Copia la hoja "Asistencia_SinValores" del libro actual al archivo nuevo
+  // .copyTo() es el método más seguro para mantener la fidelidad de los datos.
   const hojaCopia = hoja.copyTo(archivo);
-  
-  // Renombrar la hoja dentro del archivo nuevo para mantener consistencia
-  hojaCopia.setName('Asistencia_' + nombreMes);
+  // Se limita el nombre de la pestaña por restricciones de longitud de Sheets.
+  hojaCopia.setName('Asistencia_' + nombreMes.substring(0, 15));
 
   // -----------------------------------------------------------
-  // 5. LIMPIEZA DE ARCHIVO NUEVO
+  // 5. NORMALIZACIÓN DE FORMATOS (HH:mm:ss)
   // -----------------------------------------------------------
-  // Al crear un Spreadsheet, se crea por defecto una hoja llamada "Hoja 1".
-  // Eliminamos esa hoja predeterminada para dejar solo la copia que traemos.
-  const hojas = archivo.getSheets();
-  if (hojas.length > 1) {
-    // Recorremos todas las hojas y borramos las que no sean "Asistencia_..."
-    // (En teoría solo queda "Hoja 1" si borramos manualmente antes de copiar, pero esto asegura limpieza)
-    hojas.forEach(h => {
-      if (h.getName() !== hojaCopia.getName()) {
-        archivo.deleteSheet(h);
-      }
-    });
+  // Previene que las horas se transformen en fechas de 1899 al ser copiadas.
+  const ultimaFila = hojaCopia.getLastRow();
+  if (ultimaFila > 1) {
+    hojaCopia.getRange(2, 1, ultimaFila - 1, hojaCopia.getLastColumn())
+             .setNumberFormat("HH:mm:ss");
   }
 
-  Logger.log(`✅ Archivo mensual generado: ${nombreArchivo}`);
+  // -----------------------------------------------------------
+  // 6. DEPURACIÓN DEL ARCHIVO DESTINO
+  // -----------------------------------------------------------
+  // SpreadsheetApp.create() siempre incluye una "Hoja 1". Procedemos a eliminarla
+  // para que el archivo histórico solo contenga la información relevante.
+  const hojas = archivo.getSheets();
+  hojas.forEach(h => {
+    if (h.getName() !== hojaCopia.getName()) {
+      archivo.deleteSheet(h);
+    }
+  });
+
+  Logger.log(`✅ Consolidado histórico generado con éxito: ${nombreArchivo}`);
 }
 
 // ===================================================================
-// 3. UTILIDAD DE CARPETAS (DRIVE API)
+// 3. UTILIDADES DE INFRAESTRUCTURA (DRIVE API)
 // ===================================================================
 
 /**
- * @summary Busca una carpeta por nombre en Drive. Si no existe, la crea.
- * @description Utiliza `getFoldersByName` para verificar existencia.
- *              Usa `createFolder` para generar la carpeta si falta.
- * 
- * @param {String} nombre - Nombre exacto de la carpeta en Drive.
- * @returns {Folder} Objeto Carpeta de Google Drive.
- * @private
+ * @summary Busca una carpeta en la raíz de Drive. Si es inexistente, la crea.
+ * @param {String} nombre - Nombre descriptivo de la carpeta.
+ * @returns {Folder} El objeto carpeta de Google Drive listo para su uso.
  */
 function obtenerOCrearCarpeta(nombre) {
-  // Buscar carpetas con ese nombre exacto
   const folders = DriveApp.getFoldersByName(nombre);
-  
-  // Si existe alguna, retornar la primera
-  if (folders.hasNext()) {
-    return folders.next();
-  }
-  
-  // Si no existe, crearla
+  if (folders.hasNext()) return folders.next();
   return DriveApp.createFolder(nombre);
 }
