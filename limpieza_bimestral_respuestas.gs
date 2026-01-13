@@ -4,29 +4,30 @@
 /**
  * @summary Módulo de Archivo y Limpieza Bimestral de "Respuestas".
  * @description Gestiona el ciclo de vida de los registros crudos de Entrada/Salida.
- *              Este archivo es crítico para evitar que la hoja "Respuestas" se vuelva
- *              masiva, manteniendo el sistema ágil.
+ * Este archivo es crítico para evitar que la hoja "Respuestas" se vuelva
+ * masiva, manteniendo el sistema ágil.
  *
  * @logic
  * - ⚡ **Trigger Automático:** Se programa para ejecutarse cada 2 meses.
  * - 📅 **Rango Bimestral:** Archiva los 2 meses anteriores (Ej: Mayo archiva Marzo/Abril).
  * - 🗑️ **Limpieza:** Borra de la hoja principal los registros del periodo archivado.
  * - 🛡️ **Preservación Inteligente:** NO borra registros críticos:
- *     1. Registros Futuros (Turnos del día de mañana).
- *     2. Turnos Abiertos del último día del periodo (Ej: Entrada sin Salida del último día),
- *        para permitir que el administrador cierre manualmente esas horas.
+ * 1. Registros Futuros (Turnos del día de mañana).
+ * 2. Turnos Abiertos del último día del periodo (Ej: Entrada sin Salida del último día),
+ * para permitir que el administrador cierre manualmente esas horas.
  *
  * @correcciones (Versión Final)
  * - ✅ **Sin Timestamp:** Ya no usa ni busca columna 'Timestamp'. 
- *     Reconstruye la fecha manualmente desde 'Fecha Entrada' + 'Hora Entrada'.
+ * Reconstruye la fecha manualmente desde 'Fecha Entrada' + 'Hora Entrada'.
  * - ✅ **Sin Tipo:** No filtra por columna 'Tipo' (Entrada/Salida).
- *     Detecta "Entrada" verificando si "Fecha Salida" está vacía.
+ * Detecta "Entrada" verificando si "Fecha Salida" está vacía.
+ * - ✅ **Formato de Celdas:** Aplica formatos de fecha y hora al archivar para evitar el error 1899.
  *
  * @dependencies
- *   - `install_triggers.gs` (Función `ensureTimeTrigger`).
+ * - `install_triggers.gs` (Función `ensureTimeTrigger`).
  *
  * @author NASE Team
- * @version 2.0 (Algoritmo de Preservación)
+ * @version 2.2 (Lógica de Preservación + Formateo Visual)
  */
 
 // ===================================================================
@@ -36,11 +37,10 @@
 /**
  * @summary Instala el disparador bimestral para la hoja Respuestas.
  * @description Crea un Time-Based trigger.
- * 
- * @schedule
- *   - Día del mes: 1 (Cada mes 1ro).
- *   - Hora: 16 (4:00 PM).
- *   - Nota: La función interna tiene un filtro para ejecutar solo en meses pares (Feb, Abr, Jun...).
+ * * @schedule
+ * - Día del mes: 1 (Cada mes 1ro).
+ * - Hora: 16 (4:00 PM).
+ * - Nota: La función interna tiene un filtro para ejecutar solo en meses pares (Feb, Abr, Jun...).
  */
 function instalarTriggersLimpiezaBimestralRespuestas() {
   // Wrapper de seguridad para crear trigger si no existe
@@ -61,17 +61,16 @@ function instalarTriggersLimpiezaBimestralRespuestas() {
 /**
  * @summary Archiva el bimestre anterior y limpia la hoja principal.
  * @description Algoritmo complejo en 3 fases:
- *   1. **Fase Cálculo:** Determina qué 2 meses van a ser archivados.
- *   2. **Fase Detección (1er Pasada):** Busca turnos abiertos (Sin Salida)
- *      que ocurrieron en el último día del periodo. Guarda las Cédulas en un Set.
- *   3. **Fase Separación (2da Pasada):** Itera toda la hoja.
- *      - Si está en el rango archivable: Mover al archivo.
- *      - Si es un registro del último día y ES un turno abierto (Cédula en el Set): Mover al archivo.
- *      - Si es Futuro: MANTENER en la hoja principal (Conservar).
- * 
- * @output
- *   - Archivo en Drive (Carpeta: "Archivos Respuestas Bimestrales").
- *   - Hoja "Respuestas" limpia, conservando solo datos futuros/abiertos.
+ * 1. **Fase Cálculo:** Determina qué 2 meses van a ser archivados.
+ * 2. **Fase Detección (1er Pasada):** Busca turnos abiertos (Sin Salida)
+ * que ocurrieron en el último día del periodo. Guarda las Cédulas en un Set.
+ * 3. **Fase Separación (2da Pasada):** Itera toda la hoja.
+ * - Si está en el rango archivable: Mover al archivo.
+ * - Si es un registro del último día y ES un turno abierto (Cédula en el Set): Mover al archivo.
+ * - Si es Futuro: MANTENER en la hoja principal (Conservar).
+ * * @output
+ * - Archivo en Drive (Carpeta: "Archivos Respuestas Bimestrales").
+ * - Hoja "Respuestas" limpia, conservando solo datos futuros/abiertos.
  */
 function limpiarRespuestasBimestral() {
   const hoy = new Date();
@@ -83,8 +82,7 @@ function limpiarRespuestasBimestral() {
   // Código original: if (mes % 2 !== 0) return;
   // Lógica: Esto se ejecutará en Febrero (1), Abril (3), Junio (5), Agosto (7), Octubre (9), Diciembre (11).
   // Es decir, meses IMPARES (1, 3, 5) según índice, que corresponden a PARES del calendario (Feb, Abr...).
-  // (Si el usuario quería Enero/Marzo, la lógica debería ser `(mes % 2 === 0)`).
-  // Mantengo la lógica del código tal cual.
+  
   if (mes % 2 !== 0) return;
 
 
@@ -148,36 +146,23 @@ function limpiarRespuestasBimestral() {
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
     
-    // ✅ RECONSTRUIR FECHA (Sin Timestamp)
-    const fechaRaw = row[idxFechaEnt];
-    const horaRaw = row[idxHoraEnt];
-    let ts = null;
-    
-    // Parseo manual: dd/mm/yyyy HH:mm -> Date Object
-    if (fechaRaw && horaRaw) {
-       const parts = fechaRaw.split('/');
-       if (parts.length === 3) ts = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${horaRaw}`);
-    }
+    // ✅ RECONSTRUIR FECHA (Manejo robusto de tipos Date/String)
+    const ts = interpretarFechaYHora(row[idxFechaEnt], row[idxHoraEnt]);
 
     if (!ts) continue;
 
     // ✅ DETERMINAR TIPO (Sin Tipo column)
-    // Si no tiene fecha salida ni hora salida -> Es Entrada (Pendiente)
     const fechaSal = String(row[idxFechaSal] || '').trim();
-    const horaSal = String(row[idxHoraSal] || '').trim();
-    const esEntrada = (!fechaSal && !horaSal);
+    const esEntrada = (!fechaSal);
 
     // ¿Es el último día del periodo?
     if (ts.getDate() === ultimoDia.getDate() &&
         ts.getMonth() === ultimoDia.getMonth() &&
         ts.getFullYear() === ultimoDia.getFullYear() &&
         esEntrada) {
-      // Verificar si tiene salida en la misma fila
-      if (!fechaSal) {
-        // Si NO tiene salida y ES el último día, es un TURNO ABIERTO CRÍTICO.
-        // Guardamos la Cédula para no borrarla después.
-        entradasUltimoDiaSinSalida.add(String(row[idxCedula]).trim());
-      }
+      
+      // Si NO tiene salida y ES el último día, es un TURNO ABIERTO CRÍTICO.
+      entradasUltimoDiaSinSalida.add(String(row[idxCedula]).trim());
     }
   }
 
@@ -188,43 +173,32 @@ function limpiarRespuestasBimestral() {
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
     
-    // Parsear fecha de la fila
-    const fechaRaw = row[idxFechaEnt];
-    const horaRaw = row[idxHoraEnt];
-    let ts = null;
-    
-    if (fechaRaw && horaRaw) {
-       const parts = fechaRaw.split('/');
-       if (parts.length === 3) ts = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${horaRaw}`);
-    }
+    // Parsear fecha de la fila de forma segura
+    const ts = interpretarFechaYHora(row[idxFechaEnt], row[idxHoraEnt]);
 
     if (!ts) continue;
 
-    // Determinar Tipo (Entrada/Salida)
     const fechaSal = String(row[idxFechaSal] || '').trim();
-    const horaSal = String(row[idxHoraSal] || '').trim();
-    const esEntrada = (!fechaSal && !horaSal);
-
+    const esEntrada = (!fechaSal);
     const cedula = String(row[idxCedula]).trim();
 
     // LÓGICA DE CLASIFICACIÓN:
     
-    // 1. ARCHIVAR: Si está en el rango del bimestre (Entre inicioBimestre y finBimestre)
+    // 1. ARCHIVAR: Si está en el rango del bimestre
     if (ts >= inicioBimestre && ts <= finBimestre) {
-      datosBimestre.push(row);
+      // 3. CONSERVAR CRÍTICO: Si es el último día Y es una entrada abierta Y su cédula está en el Set.
+      if (ts.getDate() === ultimoDia.getDate() &&
+          ts.getMonth() === ultimoDia.getMonth() &&
+          ts.getFullYear() === ultimoDia.getFullYear() &&
+          esEntrada &&
+          entradasUltimoDiaSinSalida.has(cedula)) {
+        datosConservar.push(row);
+      } else {
+        datosBimestre.push(row);
+      }
     } 
     // 2. CONSERVAR FUTURO: Si es posterior al fin del bimestre
     else if (ts > finBimestre) {
-      datosConservar.push(row);
-    } 
-    // 3. CONSERVAR CRÍTICO: Si es el último día Y es una entrada abierta Y su cédula está en el Set de la Pasada 1.
-    else if (ts.getDate() === ultimoDia.getDate() &&
-               ts.getMonth() === ultimoDia.getMonth() &&
-               ts.getFullYear() === ultimoDia.getFullYear() &&
-               esEntrada &&
-               entradasUltimoDiaSinSalida.has(cedula)) {
-      // Este registro es antiguo (del periodo), pero es una Entrada Abierta del último día.
-      // Lo mantenemos para que el admin pueda cerrarlo manualmente.
       datosConservar.push(row);
     }
   }
@@ -232,44 +206,84 @@ function limpiarRespuestasBimestral() {
   // -----------------------------------------------------------------
   // 6. CREACIÓN DE ARCHIVO EN DRIVE
   // -----------------------------------------------------------------
-  // Carpeta específica para históricos de Respuestas
-  const folder = obtenerOCrearCarpeta('Archivos Respuestas Bimestrales');
-  
-  // Nombre del archivo (Ej: Respuestas_Bimestre_2025-03_2025-04)
-  const nombreArchivo = `Respuestas_Bimestre_${inicioBimestre.getFullYear()}-${String(inicioBimestre.getMonth() + 1).padStart(2, '0')}_a_${finBimestre.getFullYear()}-${String(finBimestre.getMonth() + 1).padStart(2, '0')}`;
-  
-  // Crear el nuevo archivo y mover a la carpeta
-  const archivo = SpreadsheetApp.create(nombreArchivo);
-  DriveApp.getFileById(archivo.getId()).moveTo(folder);
+  if (datosBimestre.length > 1) {
+    const folder = obtenerOCrearCarpeta('Archivos Respuestas Bimestrales');
+    const nombreArchivo = `Respuestas_Bimestre_${inicioBimestre.getFullYear()}-${String(inicioBimestre.getMonth() + 1).padStart(2, '0')}_a_${finBimestre.getFullYear()}-${String(finBimestre.getMonth() + 1).padStart(2, '0')}`;
+    
+    const archivo = SpreadsheetApp.create(nombreArchivo);
+    DriveApp.getFileById(archivo.getId()).moveTo(folder);
 
-  // Escribir los datos archivados en el nuevo archivo
-  const hojaArchivo = archivo.getSheets()[0];
-  hojaArchivo.setName('Respuestas_Archivadas');
-  hojaArchivo.getRange(1, 1, datosBimestre.length, headers.length).setValues(datosBimestre);
+    const hojaArchivo = archivo.getSheets()[0];
+    hojaArchivo.setName('Respuestas_Archivadas');
+    
+    // Escribir los datos
+    hojaArchivo.getRange(1, 1, datosBimestre.length, headers.length).setValues(datosBimestre);
 
+    // ✅ APLICAR FORMATOS PARA EVITAR ERROR 1899
+    const ultimaFilaArch = hojaArchivo.getLastRow();
+    if (ultimaFilaArch > 1) {
+      // Formato para columnas de Fecha (Entrada y Salida)
+      hojaArchivo.getRange(2, idxFechaEnt + 1, ultimaFilaArch - 1, 1).setNumberFormat("dd/mm/yyyy");
+      if (idxFechaSal !== -1) hojaArchivo.getRange(2, idxFechaSal + 1, ultimaFilaArch - 1, 1).setNumberFormat("dd/mm/yyyy");
+      
+      // Formato para columnas de Hora (Entrada y Salida)
+      hojaArchivo.getRange(2, idxHoraEnt + 1, ultimaFilaArch - 1, 1).setNumberFormat("HH:mm:ss");
+      if (idxHoraSal !== -1) hojaArchivo.getRange(2, idxHoraSal + 1, ultimaFilaArch - 1, 1).setNumberFormat("HH:mm:ss");
+      
+      hojaArchivo.autoResizeColumns(1, headers.length);
+    }
 
-  // -----------------------------------------------------------------
-  // 7. LIMPIEZA Y RESTAURACIÓN DE HOJA PRINCIPAL
-  // -----------------------------------------------------------------
-  // Limpiar todo y dejar solo lo que debemos conservar
-  hojaResp.clear();
-  hojaResp.getRange(1, 1, datosConservar.length, headers.length).setValues(datosConservar);
+    // -----------------------------------------------------------------
+    // 7. LIMPIEZA Y RESTAURACIÓN DE HOJA PRINCIPAL
+    // -----------------------------------------------------------------
+    hojaResp.clear();
+    hojaResp.getRange(1, 1, datosConservar.length, headers.length).setValues(datosConservar);
 
-
-  Logger.log(`✅ Respuestas archivadas: ${nombreArchivo} con ${datosBimestre.length - 1} registros. Conservados: ${datosConservar.length - 1}`);
+    Logger.log(`✅ Respuestas archivadas: ${nombreArchivo} con ${datosBimestre.length - 1} registros. Conservados: ${datosConservar.length - 1}`);
+  } else {
+    Logger.log("ℹ️ No se encontraron registros para archivar en este periodo.");
+  }
 }
 
 // ===================================================================
-// 8. UTILIDAD DE CARPETAS (DRIVE API)
+// 8. UTILIDADES Y TRADUCCIÓN DE DATOS
 // ===================================================================
+
+/**
+ * @summary Función Auxiliar para interpretar fechas de forma robusta.
+ * @description Maneja casos donde Google envía la fecha como Texto o como Objeto Date.
+ * Resuelve el error "split is not a function".
+ * * @param {any} fechaRaw - El valor de la celda de fecha.
+ * @param {any} horaRaw - El valor de la celda de hora.
+ * @returns {Date|null} Objeto Date procesado.
+ */
+function interpretarFechaYHora(fechaRaw, horaRaw) {
+  if (!fechaRaw) return null;
+  let d = null;
+
+  // CASO 1: Ya es un objeto Date
+  if (fechaRaw instanceof Date) {
+    d = new Date(fechaRaw.getTime());
+    if (horaRaw instanceof Date) {
+      d.setHours(horaRaw.getHours(), horaRaw.getMinutes(), horaRaw.getSeconds());
+    }
+  } 
+  // CASO 2: Es un texto (String) con formato DD/MM/AAAA
+  else if (typeof fechaRaw === 'string' && fechaRaw.includes('/')) {
+    const parts = fechaRaw.split('/');
+    if (parts.length === 3) {
+      const horaStr = (horaRaw instanceof Date) ? Utilities.formatDate(horaRaw, "GMT-5", "HH:mm:ss") : horaRaw;
+      d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${horaStr || '00:00:00'}`);
+    }
+  }
+  return (d && !isNaN(d.getTime())) ? d : null;
+}
 
 /**
  * @summary Busca una carpeta por nombre en Drive. Si no existe, la crea.
  * @description Función reutilizable para organizar archivos históricos.
- * 
- * @param {String} nombre - Nombre de la carpeta en Drive.
+ * * @param {String} nombre - Nombre de la carpeta en Drive.
  * @returns {Folder} Objeto Carpeta de Google Drive.
- * @private
  */
 function obtenerOCrearCarpeta(nombre) {
   const folders = DriveApp.getFoldersByName(nombre);
