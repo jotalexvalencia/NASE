@@ -973,12 +973,23 @@
       document.getElementById('detalleHoraSalida').textContent = formatoHora(r.horaSalida);
       document.getElementById('detalleCentroSalida').textContent = r.centro || '-';
       
-      // Leer estado salida
-      const dentroSal = r.dentroCentroSal || '-';
-      const esDentroSal = ['sí', 'si'].includes(String(dentroSal).toLowerCase());
-      
-      document.getElementById('detalleDentroSalida').innerHTML =
-        `<span class="status-badge ${esDentroSal ? 'status-inside' : 'status-outside'}">${esDentroSal ? 'Dentro' : 'Fuera'}</span>`;
+      // ✅ CORRECCIÓN: Validar si hay fecha de salida antes de decidir el estado
+      const tieneSalida = (r.fechaSalida && r.fechaSalida !== '-' && r.horaSalida && r.horaSalida !== '-');
+
+      if (tieneSalida) {
+        // Si YA salió, pintamos el estado real (Dentro/Fuera)
+        const dentroSal = r.dentroCentroSal || '-';
+        const esDentroSal = ['sí', 'si'].includes(String(dentroSal).toLowerCase());
+        
+        document.getElementById('detalleDentroSalida').innerHTML =
+          `<span class="status-badge ${esDentroSal ? 'status-inside' : 'status-outside'}">${esDentroSal ? 'Dentro' : 'Fuera'}</span>`;
+      } else {
+        // Si NO ha salido (campo vacío o solo entrada), pintamos "Pendiente" en gris
+        // Evitando el error visual que lo mostraba como "Fuera"
+        document.getElementById('detalleCentroSalida').textContent = '';
+        document.getElementById('detalleDentroSalida').innerHTML =
+          `<span></span>`;
+      }
 
       if (urlSal) {
         document.getElementById('detalleFotoSalida').src = urlSal;
