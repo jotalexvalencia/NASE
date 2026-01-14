@@ -49,6 +49,17 @@
  * @warning No ejecutar en producción con datos reales. Borra o ensucia la hoja "Respuestas".
  *           Si se desea probar con datos reales, eliminar la función de limpieza al inicio.
  */
+
+// Datos Mock para simular diferentes centros
+  const ciudades = ['PEREIRA', 'DOSQUEBRADAS', 'CALI', 'CARTAGO', 'BOGOTA'];
+  const centros = [
+    'PEREIRA ADMINISTRACION',
+    'PEREIRA MEGABUS',
+    'CALI IDIME CAMBULOS',
+    'BOGOTA CLINICA NUEVA EL LAGO',
+    'CARTAGO CLINICA NUEVA DE CARTAGO'
+  ];
+
 function simularConcurrenciaConBreaks() {
   const NUM_EMPLEADOS = 200; // Ajustar a 1000 si quieres probar extrema
   const REGISTROS_POR_DIA = 4; // Simula un empleado que entra/sale 2 veces al día
@@ -65,14 +76,14 @@ function simularConcurrenciaConBreaks() {
   const inicio = new Date();
   
   // Datos Mock para simular diferentes centros
-  const ciudades = ['PEREIRA', 'DOSQUEBRADAS', 'CALI', 'CARTAGO', 'BOGOTA'];
+  /*const ciudades = ['PEREIRA', 'DOSQUEBRADAS', 'CALI', 'CARTAGO', 'BOGOTA'];
   const centros = [
     'PEREIRA ADMINISTRACION',
     'PEREIRA MEGABUS',
     'CALI IDIME CAMBULOS',
     'BOGOTA CLINICA NUEVA EL LAGO',
     'CARTAGO CLINICA NUEVA DE CARTAGO'
-  ];
+  ];*/
 
   // Generar el pool de empleados
   const empleados = generarEmpleadosConBreaks(NUM_EMPLEADOS, REGISTROS_POR_DIA, DIAS);
@@ -454,5 +465,46 @@ function testConsulta() {
     Logger.log("========================================================");
   } catch (e) {
     Logger.log(`❌ ERROR EN TEST CONSULTA: ${e.toString()}`);
+  }
+}
+
+/**
+ * @summary Test Forzado de Limpieza Bimestral.
+ * @description Ejecuta la lógica de limpieza simulando que la fecha actual es 01/02/2026.
+ * Esto permite probar el archivado de Nov/Dic sin esperar a la fecha real.
+ */
+function testEjecutarLimpiezaBimestral() {
+  Logger.log("🚀 Iniciando Simulación de Limpieza Bimestral...");
+
+  // 1. Definimos la fecha de simulación: 1 de Febrero de 2026
+  // (Los meses en JS empiezan en 0, por eso 1 = Febrero)
+  const hoySimulado = new Date(2026, 1, 1, 10, 0, 0); 
+  
+  // 2. Llamamos a la función original pero con lógica inyectada
+  // NOTA: Para que funcione sin tocar el original, hemos extraído la lógica aquí:
+  
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hojaResp = ss.getSheetByName('Respuestas');
+  
+  if (!hojaResp || hojaResp.getLastRow() <= 1) {
+    Logger.log("❌ No hay datos suficientes para limpiar.");
+    return;
+  }
+
+  // CÁLCULO DE RANGOS BASADO EN FECHA SIMULADA
+  const finBimestre = new Date(hoySimulado.getFullYear(), hoySimulado.getMonth() - 1, 0, 23, 59, 59);
+  const inicioBimestre = new Date(finBimestre.getFullYear(), finBimestre.getMonth() - 1, 1, 0, 0, 0);
+
+  Logger.log(`📅 Rango simulado para archivar: ${inicioBimestre.toLocaleDateString()} al ${finBimestre.toLocaleDateString()}`);
+
+  // LLAMADA A LA FUNCIÓN ORIGINAL
+  // IMPORTANTE: Para este test, ve a limpieza_bimestral_respuestas.gs 
+  // y comenta la línea: if (mes % 2 !== 0) return;
+  
+  try {
+    limpiarRespuestasBimestral();
+    Logger.log("✅ Proceso completado. Revisa tu Google Drive y la hoja Respuestas.");
+  } catch (e) {
+    Logger.log("❌ Error en la ejecución: " + e.message);
   }
 }
