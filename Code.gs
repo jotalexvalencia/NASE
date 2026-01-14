@@ -359,7 +359,8 @@ function obtenerRegistros(filtros) {
         fechaSalida: fechaSalidaStr,
         horaSalida: horaSalidaStr,
         fotoSalida: String(row[RESP_I.FOTO_SAL] || '').trim(),
-        dentroCentroSal: String(row[RESP_I.DENTRO_SAL] || '').trim() || '-'
+        // ✅ CORRECCIÓN AQUÍ: Si no hay fecha de salida, el estado debe ser vacío para evitar mostrar "Fuera" por defecto.
+        dentroCentroSal: (fechaSalidaStr && fechaSalidaStr !== '-') ? String(row[RESP_I.DENTRO_SAL] || '').trim() : ''
       };
       registros.push(reg);
     }
@@ -370,6 +371,7 @@ function obtenerRegistros(filtros) {
     return { status: 'error', message: 'Error interno: ' + e.toString() };
   }
 }
+
 
 /**
  * @summary Exporta los registros de la hoja "Respuestas" a formato CSV.
@@ -392,8 +394,12 @@ function exportarRegistrosExcel(filtros) {
 
   for (let i = 0; i < resultado.registros.length; i++) {
     const r = resultado.registros[i];
-    // No necesitamos validar 'pasa' aquí porque obtenerRegistros ya filtró
-    const dentroSalida = r.dentroCentroSal || r.dentroCentro || '-'; 
+    
+    // ✅ CORRECCIÓN AQUÍ: Validación estricta de fecha de salida.
+    // Solo mostramos el estado 'Dentro Salida' si existe una fecha de salida real.
+    // Esto evita traer datos fantasma o estados pre-llenados erróneamente.
+    const tieneSalidaValida = (r.fechaSalida && r.fechaSalida !== '-' && r.fechaSalida !== '');
+    const dentroSalida = tieneSalidaValida ? (r.dentroCentroSal || '-') : '-';
     
     const csvLinea = [
       escape(r.cedula), 
@@ -704,7 +710,9 @@ function registrarUltra(dataInput) {
     fila[RESP_I.FECHA_SAL] = ""; 
     fila[RESP_I.HORA_SAL] = "";
     fila[RESP_I.FOTO_SAL] = "";
-    fila[RESP_I.DENTRO_SAL] = estaDentro ? 'Sí' : 'No';
+    
+    // ✅ CORRECCIÓN AQUÍ: Se establece vacío para no pre-llenar el estado de salida en la entrada.
+    fila[RESP_I.DENTRO_SAL] = ""; 
 
     sh.appendRow(fila);
     return { status: 'ok', message: 'Entrada registrada exitosamente.' };
