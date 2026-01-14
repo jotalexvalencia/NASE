@@ -400,6 +400,43 @@
       );
     };
 
+    /**
+     * @summary Resetea la interfaz a su estado inicial.
+     * @description Limpia inputs, oculta secciones y reinicia variables globales
+     *              sin necesidad de recargar la página.
+     */
+    window.resetearInterfaz = function() {
+        // 1. Reiniciar Sección Supervisor (Cédula)
+      var cedulaInput = document.getElementById('cedulaSup');
+      cedulaInput.value = '';
+      cedulaInput.readOnly = false; // Permitir edición novamente
+      
+      // 2. Ocultar panel de autorización
+      document.getElementById('infoSupervisor').style.display = 'none';
+
+      // 3. Bloquear Sección de Datos (Visual y funcional)
+      var datosSection = document.getElementById('section-datos');
+      datosSection.classList.add('disabled-section'); // Volver opaco
+      
+      // Deshabilitar selects
+      document.getElementById('ciudad').disabled = true;
+      document.getElementById('centro').disabled = true;
+
+      // 4. Limpiar selects y coordenadas
+      document.getElementById('ciudad').selectedIndex = 0; // Opción por defecto
+      document.getElementById('centro').innerHTML = '<option value="">Seleccione Centro...</option>';
+      document.getElementById('lat').value = '';
+      document.getElementById('lng').value = '';
+
+      // 5. Deshabilitar botón guardar
+      document.getElementById('btnGuardar').disabled = true;
+
+      // 6. Resetear variable global de JS
+      supervisorValidado = null;
+      
+      console.log("Interfaz reseteada correctamente");
+    };
+
     // -------------------------------------------------------------------
     // 5. ENVÍO DE FORMULARIO (Backend)
     // -------------------------------------------------------------------
@@ -429,8 +466,9 @@
         .withSuccessHandler(function(res) {
           if (res.status === 'ok') {
             Swal.fire('¡Éxito!', 'Centro actualizado.', 'success').then(function() { 
-              // Recargar página para reflejar cambios
-              window.location.reload(); 
+              
+             window.resetearInterfaz();
+              
             });
           } else {
             Swal.fire('Error', res.message, 'error');
